@@ -54,7 +54,13 @@ fn bricks_to_save(bricks: Vec<brs::Brick>) -> brs::WriteData {
     }
 }
 
-fn gen_heightmap(heightmap_file: String, colormap_file: String, size: u32, scale: u32, cull: bool) {
+fn gen_heightmap(
+    heightmap_file: String,
+    colormap_file: String,
+    size: u32,
+    scale: u32,
+    cull: bool,
+) -> brs::WriteData {
     println!("Reading files");
     let heightmap = image_from_file(heightmap_file);
     let colormap = if colormap_file.is_empty() {
@@ -113,20 +119,16 @@ fn gen_heightmap(heightmap_file: String, colormap_file: String, size: u32, scale
         }
     }
 
-    let write_data = bricks_to_save(bricks);
-
-    println!("Writing Save");
-
-    let mut write_dest = std::fs::File::create("../autogen.brs").unwrap();
-    write_save(&mut write_dest, &write_data).unwrap();
+    bricks_to_save(bricks)
 }
 
 fn main() {
     let matches = App::new("Heightmap2BRS")
-        .version("1.0")
+        .version("0.2.0")
         .author("cake")
         .about("Converts png 2 brs file")
         .arg(Arg::with_name("INPUT").required(true).index(1))
+        .arg(Arg::with_name("output").short("o").takes_value(true))
         .arg(Arg::with_name("colormap").short("c").takes_value(true))
         .arg(Arg::with_name("size").short("s").takes_value(true))
         .arg(Arg::with_name("scale").short("x").takes_value(true))
@@ -135,6 +137,10 @@ fn main() {
 
     let heightmap_file = matches.value_of("INPUT").unwrap().to_string();
     let colormap_file = matches.value_of("colormap").unwrap_or("").to_string();
+    let out_file = matches
+        .value_of("output")
+        .unwrap_or("../autogen.brs")
+        .to_string();
 
     let size = matches
         .value_of("size")
@@ -147,8 +153,13 @@ fn main() {
         .value_of("scale")
         .unwrap_or("1")
         .parse::<u32>()
-        .expect("Size must be integer");
+        .expect("Scale must be integer");
 
     let cull = matches.is_present("cull");
-    gen_heightmap(heightmap_file, colormap_file, size, scale, cull);
+
+    let data = gen_heightmap(heightmap_file, colormap_file, size, scale, cull);
+
+    println!("Writing Save to {}", out_file);
+    let mut write_dest = std::fs::File::create(out_file).unwrap();
+    write_save(&mut write_dest, &data).unwrap();
 }

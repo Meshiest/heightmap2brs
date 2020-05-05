@@ -21,10 +21,11 @@ Compile or download from releases.
         -V, --version    Prints version information
 
     OPTIONS:
-        -c <colormap>    Supply colormap file (should be same size, I was too lazy to code in any checks)
+        -c <colormap>    Supply colormap PNG file (same size as heightmap)
+        -o <outfile>     Output file (brs)
         -x <scale>       Vertical scale of the output (default 1)
         -s <size>        Brick size of the output (default 1)
 
     ARGS:
-        <INPUT>
+        <INPUT>          Input PNG file
 
