@@ -10,22 +10,28 @@ You need [rust](https://www.rust-lang.org/).
 
 Compile or download from releases.
 
-`heightmap.exe --help` for flags:
+`heightmap.exe --help` for usage instructions:
 
     USAGE:
-        heightmap [FLAGS] [OPTIONS] <INPUT>
+        heightmap.exe [FLAGS] [OPTIONS] <INPUT>
 
     FLAGS:
-        -z               Cull 0 layer bricks (I didn't really test this lol)
+            --cull       Automatically remove bottom level bricks
         -h, --help       Prints help information
+            --old        Use old unoptimized heightmap code
+            --snap       Snap bricks to the brick grid
+            --tile       Render bricks as tiles
         -V, --version    Prints version information
 
     OPTIONS:
-        -c <colormap>    Supply colormap PNG file (same size as heightmap)
-        -o <outfile>     Output file (brs)
-        -x <scale>       Vertical scale of the output (default 1)
-        -s <size>        Brick size of the output (default 1)
+        -c, --colormap <colormap>    Input colormap PNG image
+        -o, --output <output>        Output BRS file
+        -s, --size <size>            Brick stud size (default 1)
+        -v, --vertical <vertical>    Vertical scale multiplier (default 1)
 
     ARGS:
-        <INPUT>          Input PNG file
+        <INPUT>    Input heightmap PNG image
 
+An example command for generating the GTA V map would be:
+
+`heightmap example_maps/gta5_fixed2_height.png -c example_maps/gta5_fixed2_color.png -s 4 -v 20 --tile -o gta5.brs`
