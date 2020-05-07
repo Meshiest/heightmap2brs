@@ -145,6 +145,7 @@ impl QuadTree {
                 if !top_left.borrow().similar(&top_right.borrow())
                     || !top_left.borrow().similar(&bottom_left.borrow())
                     || !top_left.borrow().similar(&bottom_right.borrow())
+                    || top_left.borrow().size.0 != space
                 {
                     continue;
                 }
@@ -174,6 +175,10 @@ impl QuadTree {
         for x in 0..self.width {
             for y in 0..self.height {
                 let start = get_at!(x, y);
+                if start.borrow().parent.is_some() {
+                    continue;
+                }
+
                 let shift = start.borrow().size;
                 let mut sx = 0;
                 let mut horiz_tiles = vec![];
@@ -181,7 +186,7 @@ impl QuadTree {
                 let mut vert_tiles = vec![];
 
                 // determine longest horizontal merge
-                while x + sx + shift.0 < self.width && (sx + 1) * shift.0 * size < 500 {
+                while x + sx + shift.0 < self.width && (sx + 1) * shift.0 * size < 250 {
                     let t = get_at!(x + sx + shift.0, y);
                     if !start.borrow().similar(&t.borrow()) {
                         break;
@@ -191,7 +196,7 @@ impl QuadTree {
                 }
 
                 // determine longest vertical merge
-                while y + sy + shift.1 < self.height && (sy + 1) * shift.1 * size < 500 {
+                while y + sy + shift.1 < self.height && (sy + 1) * shift.1 * size < 250 {
                     let t = get_at!(x, y + sy + shift.1);
                     if !start.borrow().similar(&t.borrow()) {
                         break;
@@ -235,11 +240,11 @@ impl QuadTree {
 
                 let mut bricks = vec![];
                 // until we've made enough bricks to fill the height
-                // add a brick with a max height of 500
+                // add a brick with a max height of 250
                 while desired_height > 0 {
                     // pick height for this brick
 
-                    let height = min(max(desired_height, 2), 500) as u32;
+                    let height = min(max(desired_height, 2), 250) as u32;
                     let height = height + height % 2;
 
                     bricks.push(brs::Brick {

@@ -10,7 +10,7 @@ use clap::clap_app;
 
 fn main() {
     let matches = clap_app!(heightmap =>
-        (version: "0.3.0")
+        (version: "0.3.1")
         (author: "github.com/Meshiest")
         (about: "Converts heightmap png files to Brickadia save files")
         (@arg INPUT: +required "Input heightmap PNG image")
@@ -69,12 +69,12 @@ fn main() {
         println!("Optimizing quadtree");
         let mut scale = 0;
         // loop until the bricks would be too wide or we stop optimizing bricks
-        while 2_i32.pow(scale + 1) * (options.size as i32) < 500 {
+        while 2_i32.pow(scale + 1) * (options.size as i32) < 250 {
             let count = quad.quad_optimize_level(scale);
             if count == 0 {
                 break;
             } else {
-                println!("  Removed {:?} {}x{} bricks", count, scale + 1, scale + 1);
+                println!("  Removed {:?} {}x bricks", count, 2_i32.pow(scale));
             }
             scale += 1;
         }
