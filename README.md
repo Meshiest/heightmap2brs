@@ -1,6 +1,7 @@
 # Heightmap2BRS
 
 ![Example output](https://i.imgur.com/QdPLN09.png)
+![GTAV Map](https://i.imgur.com/aDdcxag.png)
 
 ### Compiling
 
