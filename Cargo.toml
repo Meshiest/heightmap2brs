@@ -2,7 +2,7 @@
 name = "heightmap"
 version = "0.3.1"
 authors = ["Meshiest <meek.mesh@gmail.com>"]
-edition = "2020"
+edition = "2018"
 
 [dependencies]
 brs = "0.1.0"
