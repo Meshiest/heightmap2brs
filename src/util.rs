@@ -37,7 +37,7 @@ pub fn ez_brick(size: u32, position: Pos, height: u32, color: Col, tile: bool) -
         visibility: true,
         material_index: 0,
         color: ColorMode::Custom(Color::from_rgba(color[0], color[1], color[2], 255)),
-        owner_index: 1u32,
+        owner_index: Some(0),
     }
 }
 

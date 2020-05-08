@@ -263,7 +263,7 @@ impl QuadTree {
                         color: ColorMode::Custom(Color::from_rgba(
                             t.color[0], t.color[1], t.color[2], 255,
                         )),
-                        owner_index: 1u32,
+                        owner_index: Some(0),
                     });
 
                     // update Z and remaining height
