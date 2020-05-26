@@ -1,9 +1,10 @@
 extern crate brs;
 extern crate image;
 
-use crate::util::GenOptions;
+use crate::map::*;
+use crate::util::*;
 use brs::*;
-use image::RgbImage;
+
 use std::cell::RefCell;
 use std::cmp::{max, min};
 use std::collections::HashSet;
@@ -102,11 +103,10 @@ impl Tile {
 
 impl QuadTree {
     // create a heightmap grid from two images
-    pub fn from_images(heightmap: RgbImage, colormap: RgbImage) -> Self {
-        let height = heightmap.height();
-        let width = heightmap.width();
+    pub fn new(heightmap: &dyn Heightmap, colormap: &dyn Colormap) -> Self {
+        let (width, height) = heightmap.size();
 
-        if width != colormap.width() || height != colormap.height() {
+        if colormap.size() != heightmap.size() {
             panic!("Heightmap and colormap must have same dimensions");
         }
 
@@ -125,14 +125,14 @@ impl QuadTree {
                         .filter(|(x, y)| {
                             *x >= 0 && *x < width as i32 && *y >= 0 && *y < height as i32
                         })
-                        .map(|(x, y)| heightmap.get_pixel(x as u32, y as u32).0[0] as u32)
+                        .map(|(x, y)| heightmap.at(x as u32, y as u32))
                         .fold(HashSet::new(), |mut set, height| {
                             set.insert(height);
                             set
                         }),
                     size: (1, 1),
-                    color: colormap.get_pixel(x as u32, y as u32).0,
-                    height: heightmap.get_pixel(x as u32, y as u32).0[0] as u32,
+                    color: colormap.at(x as u32, y as u32),
+                    height: heightmap.at(x as u32, y as u32),
                     parent: None,
                 }))
             }
@@ -313,4 +313,49 @@ impl QuadTree {
             .flatten()
             .collect()
     }
+}
+
+// Generate a heightmap with brick conservation optimizations
+pub fn gen_opt_heightmap(
+    heightmap: &dyn Heightmap,
+    colormap: &dyn Colormap,
+    options: GenOptions,
+) -> Vec<Brick> {
+    println!("Building initial quadtree");
+    let (width, height) = heightmap.size();
+    let area = width * height;
+    let mut quad = QuadTree::new(heightmap, colormap);
+
+    println!("Optimizing quadtree");
+    let mut scale = 0;
+    // loop until the bricks would be too wide or we stop optimizing bricks
+    while 2_i32.pow(scale + 1) * (options.size as i32) < 250 {
+        let count = quad.quad_optimize_level(scale);
+        if count == 0 {
+            break;
+        } else {
+            println!("  Removed {:?} {}x bricks", count, 2_i32.pow(scale));
+        }
+        scale += 1;
+    }
+
+    println!("Optimizing linear");
+    loop {
+        let count = quad.line_optimize(options.size);
+        if count == 0 {
+            break;
+        }
+        println!("  Removed {} bricks", count);
+    }
+
+    let bricks = quad.into_bricks(options);
+    let brick_count = bricks.len();
+    println!(
+        "Reduced {} to {} ({}%; -{} bricks)",
+        area,
+        brick_count,
+        (100. - brick_count as f64 / area as f64 * 100.).floor(),
+        area as i32 - brick_count as i32,
+    );
+    bricks
 }

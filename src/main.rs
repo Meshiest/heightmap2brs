@@ -1,19 +1,22 @@
+mod map;
 mod old;
 mod quad;
 mod util;
 
+use crate::map::*;
 use crate::old::gen_heightmap;
 use crate::quad::*;
 use crate::util::*;
 use brs::*;
 use clap::clap_app;
+use std::fs::File;
 
 fn main() {
     let matches = clap_app!(heightmap =>
-        (version: "0.3.2")
+        (version: "0.3.3")
         (author: "github.com/Meshiest")
         (about: "Converts heightmap png files to Brickadia save files")
-        (@arg INPUT: +required "Input heightmap PNG image")
+        (@arg INPUT: +required +multiple "Input heightmap PNG images")
         (@arg output: -o --output +takes_value "Output BRS file")
         (@arg colormap: -c --colormap +takes_value "Input colormap PNG image")
         (@arg vertical: -v --vertical +takes_value "Vertical scale multiplier (default 1)")
@@ -25,15 +28,21 @@ fn main() {
     )
     .get_matches();
 
-    let heightmap_file = matches.value_of("INPUT").unwrap().to_string();
-    let colormap_file = matches.value_of("colormap").unwrap_or("").to_string();
+    // get files from matches
+    let heightmap_files = matches.values_of("INPUT").unwrap().collect::<Vec<&str>>();
+    let colormap_file = matches
+        .value_of("colormap")
+        .unwrap_or(heightmap_files[0])
+        .to_string();
     let out_file = matches
         .value_of("output")
         .unwrap_or("../autogen.brs")
         .to_string();
 
+    // determine generator mode
     let old_mode = matches.is_present("old");
 
+    // output options
     let options = GenOptions {
         size: matches
             .value_of("size")
@@ -51,58 +60,45 @@ fn main() {
         snap: matches.is_present("snap"),
     };
 
-    let bricks = if old_mode {
-        gen_heightmap(heightmap_file, colormap_file, options)
+    println!("Reading image files");
+
+    // heightmap file parsing
+    let heightmap = if heightmap_files.iter().all(|f| file_ext(f) == Some("png")) {
+        match HeightmapPNG::new(heightmap_files) {
+            Ok(map) => map,
+            Err(error) => {
+                return println!("Error reading colormap: {:?}", error);
+            }
+        }
     } else {
-        println!("Reading image files");
-        let heightmap = image_from_file(heightmap_file);
-        let colormap = if colormap_file.is_empty() {
-            heightmap.clone()
-        } else {
-            image_from_file(colormap_file)
-        };
+        return println!("Unsupported heightmap format");
+    };
 
-        println!("Building initial quadtree");
-        let area = heightmap.width() * heightmap.height();
-        let mut quad = QuadTree::from_images(heightmap, colormap);
-
-        println!("Optimizing quadtree");
-        let mut scale = 0;
-        // loop until the bricks would be too wide or we stop optimizing bricks
-        while 2_i32.pow(scale + 1) * (options.size as i32) < 250 {
-            let count = quad.quad_optimize_level(scale);
-            if count == 0 {
-                break;
-            } else {
-                println!("  Removed {:?} {}x bricks", count, 2_i32.pow(scale));
+    // colormap file parsing
+    let colormap = match file_ext(&colormap_file) {
+        Some("png") => match ColormapPNG::new(&colormap_file) {
+            Ok(map) => map,
+            Err(error) => {
+                return println!("Error reading colormap: {:?}", error);
             }
-            scale += 1;
+        },
+        Some(ext) => {
+            return println!("Unsupported colormap format '{}'", ext);
         }
-
-        println!("Optimizing linear");
-        loop {
-            let count = quad.line_optimize(options.size);
-            if count == 0 {
-                break;
-            }
-            println!("  Removed {} bricks", count);
+        _ => {
+            return println!("Unexpected colormap format");
         }
+    };
 
-        let bricks = quad.into_bricks(options);
-        let brick_count = bricks.len();
-        println!(
-            "Reduced {} to {} ({}%; -{} bricks)",
-            area,
-            brick_count,
-            (100. - brick_count as f64 / area as f64 * 100.).floor(),
-            area as i32 - brick_count as i32,
-        );
-        bricks
+    let bricks = if old_mode {
+        gen_heightmap(&heightmap, &colormap, options)
+    } else {
+        gen_opt_heightmap(&heightmap, &colormap, options)
     };
 
     println!("Writing Save to {}", out_file);
     let data = bricks_to_save(bricks);
-    let mut write_dest = std::fs::File::create(out_file).unwrap();
+    let mut write_dest = File::create(out_file).unwrap();
     write_save(&mut write_dest, &data).unwrap();
     println!("Done!");
 }

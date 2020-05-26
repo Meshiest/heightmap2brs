@@ -1,6 +1,8 @@
 extern crate brs;
 use brs::*;
 use brs::{chrono::DateTime, uuid::Uuid};
+use std::ffi::OsStr;
+use std::path::Path;
 
 type Pos = (i32, i32, i32);
 type Col = [u8; 3];
@@ -11,11 +13,6 @@ pub struct GenOptions {
     pub cull: bool,
     pub tile: bool,
     pub snap: bool,
-}
-
-// Open an image file
-pub fn image_from_file(file: String) -> image::RgbImage {
-    image::open(file).expect("Invalid image file").to_rgb()
 }
 
 // Brick creation helper
@@ -68,4 +65,9 @@ pub fn bricks_to_save(bricks: Vec<brs::Brick>) -> brs::WriteData {
         brick_owners,
         bricks,
     }
+}
+
+// get extension from filename
+pub fn file_ext(filename: &str) -> Option<&str> {
+    Path::new(filename).extension().and_then(OsStr::to_str)
 }

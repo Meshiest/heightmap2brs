@@ -1,38 +1,30 @@
+use crate::map::Colormap;
+use crate::map::Heightmap;
 use crate::util::ez_brick;
-use crate::util::image_from_file;
 use crate::util::GenOptions;
 use brs::Brick;
 use core::cmp::max;
 use core::cmp::min;
 
 pub fn gen_heightmap(
-    heightmap_file: String,
-    colormap_file: String,
+    heightmap: &dyn Heightmap,
+    colormap: &dyn Colormap,
     options: GenOptions,
 ) -> Vec<Brick> {
-    println!("Reading files");
-    let heightmap = image_from_file(heightmap_file);
-    let colormap = if colormap_file.is_empty() {
-        heightmap.clone()
-    } else {
-        image_from_file(colormap_file)
-    };
-
-    if heightmap.width() != colormap.width() || heightmap.height() != colormap.height() {
+    if heightmap.size() != colormap.size() {
         panic!("Heightmap and colormap must have same dimensions");
     }
 
+    let (img_width, img_height) = heightmap.size();
+
     // get the height of a pixel if it is in bounds
     let get_height = |x: i32, y: i32| {
-        if x < 0 || x >= heightmap.width() as i32 || y < 0 || y >= heightmap.height() as i32 {
+        if x < 0 || x >= img_width as i32 || y < 0 || y >= img_height as i32 {
             0
         } else {
-            heightmap.get_pixel(x as u32, y as u32).0[0]
+            heightmap.at(x as u32, y as u32)
         }
     };
-
-    // get the color of a pixel
-    let get_color = |x: i32, y: i32| colormap.get_pixel(x as u32, y as u32).0;
 
     // determine how tall a brick should be based on its neighbors
     let brick_height = |x: i32, y: i32| {
@@ -48,8 +40,8 @@ pub fn gen_heightmap(
     let mut bricks: Vec<Brick> = Vec::new();
 
     println!("Iterating pixels");
-    for y in 0..heightmap.height() as i32 {
-        for x in 0..heightmap.width() as i32 {
+    for y in 0..img_height as i32 {
+        for x in 0..img_width as i32 {
             let raw_z = get_height(x, y);
 
             // cull bricks with 0 height
@@ -58,7 +50,7 @@ pub fn gen_heightmap(
             }
 
             let raw_height = brick_height(x, y);
-            let color = get_color(x, y);
+            let color = colormap.at(x as u32, y as u32);
 
             let mut desired_height = max(raw_height * options.scale as i32 / 2, 2);
             let mut z = raw_z as i32 * options.scale as i32;

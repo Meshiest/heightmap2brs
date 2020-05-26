@@ -33,8 +33,12 @@ Compile or download from releases.
         -v, --vertical <vertical>    Vertical scale multiplier (default 1)
 
     ARGS:
-        <INPUT>    Input heightmap PNG image
+        <INPUT>...    Input heightmap PNG images
 
 An example command for generating the GTA V map would be:
 
 `heightmap example_maps/gta5_fixed2_height.png -c example_maps/gta5_fixed2_color.png -s 4 -v 20 --tile -o gta5.brs`
+
+To use stacked heightmap for increased resolution, simply provide more input files. See the `stacked_N.png` files in the `example_maps` directory for example stacked heightmaps.
+
+`heightmap ./example_maps/stacked_1.png ./example_maps/stacked_2.png ./example_maps/stacked_3.png ./example_maps/stacked_4.png --tile`
