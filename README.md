@@ -1,5 +1,7 @@
 # Heightmap2BRS
 
+[Download here](https://github.com/Meshiest/heightmap2brs/releases)
+
 ![Example output](https://i.imgur.com/QdPLN09.png)
 ![GTAV Map](https://i.imgur.com/J9XpmT3.png)
 
