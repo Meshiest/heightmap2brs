@@ -26,9 +26,21 @@ pub struct QuadTree {
 }
 
 impl Tile {
-    // determine if a tile can be merged with this one
-    fn similar(&self, other: &Self) -> bool {
+    // determine if another tile is similar in all properties
+    fn similar_quad(&self, other: &Self) -> bool {
         self.size == other.size
+            && self.color == other.color
+            && self.height == other.height
+            && self.parent.is_none()
+            && other.parent.is_none()
+    }
+
+    // determine if another tile is similar in all properties except potentially width or height as long as they are in a line
+    fn similar_line(&self, other: &Self) -> bool {
+        let is_vertical = self.center.0 == other.center.0;
+        let is_horizontal = self.center.1 == other.center.1;
+
+        (is_vertical && self.size.0 == other.size.0 || is_horizontal && self.size.1 == other.size.1)
             && self.color == other.color
             && self.height == other.height
             && self.parent.is_none()
@@ -55,23 +67,36 @@ impl Tile {
         bottom_right.parent = Some(self.index);
     }
 
+    // merge tiles that are arranged in a line
     fn merge_line(&mut self, children: Vec<&RefCell<Tile>>) {
+        // there is nothing to merge, return
         if children.is_empty() {
             return;
         }
 
-        if children[0].borrow().center.0 == self.center.0 {
-            // vertical merging
-            self.size.1 *= 1 + children.len() as u32
-        } else {
-            // horizontal merging
-            self.size.0 *= 1 + children.len() as u32
-        }
+        // determine direction of this merge
+        let is_vertical = children[0].borrow().center.0 == self.center.0;
 
-        children.into_iter().for_each(|t| {
+        // determine the new size of the parent tile, make children point at the parent
+        let new_size = children.into_iter().fold(0, |sum, t| {
+            // assign parent, extend parent's neighbors
             t.borrow_mut().parent = Some(self.index);
             self.neighbors.extend(&t.borrow().neighbors);
+
+            // sum size depending on merge direction
+            sum + if is_vertical {
+                t.borrow().size.1
+            } else {
+                t.borrow().size.0
+            }
         });
+
+        // add the size to its respective dimension
+        if is_vertical {
+            self.size.1 += new_size
+        } else {
+            self.size.0 += new_size
+        }
     }
 }
 
@@ -121,7 +146,7 @@ impl QuadTree {
     }
 
     // optimize bricks with size (level+1)
-    pub fn quad_optimize_level(&mut self, level: u32) -> u32 {
+    pub fn quad_optimize_level(&mut self, level: u32) -> usize {
         let mut count = 0;
         macro_rules! get_at {
             ($x:expr, $y:expr) => {
@@ -142,9 +167,9 @@ impl QuadTree {
                 let bottom_right = get_at!(x + space, y + space);
 
                 // if these are not similar tiles, skip them
-                if !top_left.borrow().similar(&top_right.borrow())
-                    || !top_left.borrow().similar(&bottom_left.borrow())
-                    || !top_left.borrow().similar(&bottom_right.borrow())
+                if !top_left.borrow().similar_quad(&top_right.borrow())
+                    || !top_left.borrow().similar_quad(&bottom_left.borrow())
+                    || !top_left.borrow().similar_quad(&bottom_right.borrow())
                     || top_left.borrow().size.0 != space
                 {
                     continue;
@@ -165,7 +190,8 @@ impl QuadTree {
     }
 
     // optimize by nearby bricks in line
-    pub fn line_optimize(&mut self, size: u32) {
+    pub fn line_optimize(&mut self, tile_scale: u32) -> usize {
+        let mut count = 0;
         macro_rules! get_at {
             ($x:expr, $y:expr) => {
                 &self.tiles[($y + $x * self.height) as usize];
@@ -180,37 +206,49 @@ impl QuadTree {
                 }
 
                 let shift = start.borrow().size;
-                let mut sx = 0;
+                let mut sx = shift.0;
                 let mut horiz_tiles = vec![];
-                let mut sy = 0;
+                let mut sy = shift.1;
                 let mut vert_tiles = vec![];
 
                 // determine longest horizontal merge
-                while x + sx + shift.0 < self.width && (sx + 1) * shift.0 * size < 250 {
-                    let t = get_at!(x + sx + shift.0, y);
-                    if !start.borrow().similar(&t.borrow()) {
+                while x + sx < self.width {
+                    let t = get_at!(x + sx, y);
+                    let t_size = t.borrow().size.0;
+                    if (sx + t_size) * tile_scale > 250 || !start.borrow().similar_line(&t.borrow())
+                    {
                         break;
                     }
                     horiz_tiles.push(t);
-                    sx += shift.0;
+                    sx += t_size;
                 }
 
                 // determine longest vertical merge
-                while y + sy + shift.1 < self.height && (sy + 1) * shift.1 * size < 250 {
-                    let t = get_at!(x, y + sy + shift.1);
-                    if !start.borrow().similar(&t.borrow()) {
+                while y + sy < self.height {
+                    let t = get_at!(x, y + sy);
+                    let t_size = t.borrow().size.1;
+                    if (sy + t_size) * tile_scale > 250 || !start.borrow().similar_line(&t.borrow())
+                    {
                         break;
                     }
                     vert_tiles.push(t);
-                    sy += shift.1;
+                    sy += t_size;
                 }
+
+                count += max(horiz_tiles.len(), vert_tiles.len());
 
                 // merge whichever is largest
                 start
                     .borrow_mut()
-                    .merge_line(if sx > sy { horiz_tiles } else { vert_tiles });
+                    .merge_line(if horiz_tiles.len() > vert_tiles.len() {
+                        horiz_tiles
+                    } else {
+                        vert_tiles
+                    });
             }
         }
+
+        count
     }
 
     // convert quadtree state into bricks

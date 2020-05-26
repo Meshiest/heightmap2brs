@@ -10,7 +10,7 @@ use clap::clap_app;
 
 fn main() {
     let matches = clap_app!(heightmap =>
-        (version: "0.3.1")
+        (version: "0.3.2")
         (author: "github.com/Meshiest")
         (about: "Converts heightmap png files to Brickadia save files")
         (@arg INPUT: +required "Input heightmap PNG image")
@@ -80,8 +80,13 @@ fn main() {
         }
 
         println!("Optimizing linear");
-        quad.line_optimize(options.size);
-        quad.line_optimize(options.size);
+        loop {
+            let count = quad.line_optimize(options.size);
+            if count == 0 {
+                break;
+            }
+            println!("  Removed {} bricks", count);
+        }
 
         let bricks = quad.into_bricks(options);
         let brick_count = bricks.len();
