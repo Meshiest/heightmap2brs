@@ -329,7 +329,7 @@ pub fn gen_opt_heightmap(
     println!("Optimizing quadtree");
     let mut scale = 0;
     // loop until the bricks would be too wide or we stop optimizing bricks
-    while 2_i32.pow(scale + 1) * (options.size as i32) < 250 {
+    while 2_i32.pow(scale + 1) * (options.size as i32) < 500 {
         let count = quad.quad_optimize_level(scale);
         if count == 0 {
             break;

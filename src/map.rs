@@ -3,6 +3,8 @@ extern crate image;
 use image::RgbImage;
 use std::result::Result;
 
+use crate::util::to_linear_rgb;
+
 // generic heightmap trait returns scalar from X and Y
 pub trait Heightmap {
     fn at(&self, x: u32, y: u32) -> u32;
@@ -72,7 +74,7 @@ pub struct ColormapPNG {
 // Read in a color from X, Y
 impl Colormap for ColormapPNG {
     fn at(&self, x: u32, y: u32) -> [u8; 3] {
-        self.source.get_pixel(x, y as u32).0
+        to_linear_rgb(self.source.get_pixel(x, y as u32).0)
     }
 
     fn size(&self) -> (u32, u32) {
