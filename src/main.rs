@@ -9,11 +9,12 @@ use crate::quad::*;
 use crate::util::*;
 use brs::*;
 use clap::clap_app;
+use std::boxed::Box;
 use std::fs::File;
 
 fn main() {
     let matches = clap_app!(heightmap =>
-        (version: "0.3.4")
+        (version: "0.3.5")
         (author: "github.com/Meshiest")
         (about: "Converts heightmap png files to Brickadia save files")
         (@arg INPUT: +required +multiple "Input heightmap PNG images")
@@ -24,6 +25,7 @@ fn main() {
         (@arg cull: --cull "Automatically remove bottom level bricks")
         (@arg tile: --tile "Render bricks as tiles")
         (@arg snap: --snap "Snap bricks to the brick grid")
+        (@arg img: -i --img "Make the heightmap flat and render an image")
         (@arg old: --old "Use old unoptimized heightmap code")
     )
     .get_matches();
@@ -58,24 +60,13 @@ fn main() {
         cull: matches.is_present("cull"),
         tile: matches.is_present("tile"),
         snap: matches.is_present("snap"),
+        img: matches.is_present("img"),
     };
 
     println!("Reading image files");
 
-    // heightmap file parsing
-    let heightmap = if heightmap_files.iter().all(|f| file_ext(f) == Some("png")) {
-        match HeightmapPNG::new(heightmap_files) {
-            Ok(map) => map,
-            Err(error) => {
-                return println!("Error reading colormap: {:?}", error);
-            }
-        }
-    } else {
-        return println!("Unsupported heightmap format");
-    };
-
     // colormap file parsing
-    let colormap = match file_ext(&colormap_file) {
+    let colormap = match file_ext(&colormap_file.to_lowercase()) {
         Some("png") => match ColormapPNG::new(&colormap_file) {
             Ok(map) => map,
             Err(error) => {
@@ -90,10 +81,27 @@ fn main() {
         }
     };
 
+    // heightmap file parsing
+    let heightmap: Box<dyn Heightmap> =
+        if heightmap_files.iter().all(|f| file_ext(f) == Some("png")) {
+            if options.img {
+                Box::new(HeightmapFlat::new(colormap.size()).unwrap())
+            } else {
+                match HeightmapPNG::new(heightmap_files) {
+                    Ok(map) => Box::new(map),
+                    Err(error) => {
+                        return println!("Error reading colormap: {:?}", error);
+                    }
+                }
+            }
+        } else {
+            return println!("Unsupported heightmap format");
+        };
+
     let bricks = if old_mode {
-        gen_heightmap(&heightmap, &colormap, options)
+        gen_heightmap(&*heightmap, &colormap, options)
     } else {
-        gen_opt_heightmap(&heightmap, &colormap, options)
+        gen_opt_heightmap(&*heightmap, &colormap, options)
     };
 
     println!("Writing Save to {}", out_file);

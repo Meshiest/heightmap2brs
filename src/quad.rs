@@ -215,7 +215,7 @@ impl QuadTree {
                 while x + sx < self.width {
                     let t = get_at!(x + sx, y);
                     let t_size = t.borrow().size.0;
-                    if (sx + t_size) * tile_scale > 250 || !start.borrow().similar_line(&t.borrow())
+                    if (sx + t_size) * tile_scale > 500 || !start.borrow().similar_line(&t.borrow())
                     {
                         break;
                     }
@@ -227,7 +227,7 @@ impl QuadTree {
                 while y + sy < self.height {
                     let t = get_at!(x, y + sy);
                     let t_size = t.borrow().size.1;
-                    if (sy + t_size) * tile_scale > 250 || !start.borrow().similar_line(&t.borrow())
+                    if (sy + t_size) * tile_scale > 500 || !start.borrow().similar_line(&t.borrow())
                     {
                         break;
                     }

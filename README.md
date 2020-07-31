@@ -24,6 +24,7 @@ Compile or download from releases.
             --old        Use old unoptimized heightmap code
             --snap       Snap bricks to the brick grid
             --tile       Render bricks as tiles
+        -i  --img        Make heightmap flat (use as img2brick)
         -V, --version    Prints version information
 
     OPTIONS:

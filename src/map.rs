@@ -66,6 +66,31 @@ impl HeightmapPNG {
     }
 }
 
+// A completely flat heightmap
+pub struct HeightmapFlat {
+    width: u32,
+    height: u32,
+}
+
+// The heightmap always returns 1... because it's flat
+impl Heightmap for HeightmapFlat {
+    fn at(&self, _x: u32, _y: u32) -> u32 {
+        1
+    }
+
+    fn size(&self) -> (u32, u32) {
+        (self.width, self.height)
+    }
+}
+
+// Flat heightmap just has dimensions
+impl HeightmapFlat {
+    pub fn new((width, height): (u32, u32)) -> Result<Self, String> {
+        // return a reference to save on memory
+        Ok(HeightmapFlat { width, height })
+    }
+}
+
 // PNG based colormap
 pub struct ColormapPNG {
     source: RgbImage,

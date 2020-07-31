@@ -13,6 +13,7 @@ pub struct GenOptions {
     pub cull: bool,
     pub tile: bool,
     pub snap: bool,
+    pub img: bool,
 }
 
 // convert gamma to linear gamma
