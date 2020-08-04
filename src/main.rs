@@ -14,7 +14,7 @@ use std::fs::File;
 
 fn main() {
     let matches = clap_app!(heightmap =>
-        (version: "0.3.5")
+        (version: "0.3.6")
         (author: "github.com/Meshiest")
         (about: "Converts heightmap png files to Brickadia save files")
         (@arg INPUT: +required +multiple "Input heightmap PNG images")
