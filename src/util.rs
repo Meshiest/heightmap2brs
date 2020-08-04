@@ -14,6 +14,7 @@ pub struct GenOptions {
     pub tile: bool,
     pub snap: bool,
     pub img: bool,
+    pub hdmap: bool,
 }
 
 // convert gamma to linear gamma

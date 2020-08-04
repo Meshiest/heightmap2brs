@@ -1,6 +1,8 @@
 extern crate image;
+extern crate byteorder;
 
-use image::RgbImage;
+use image::{RgbaImage, RgbImage};
+use byteorder::{ByteOrder, BigEndian};
 use std::result::Result;
 
 use crate::util::to_linear_rgb;
@@ -19,15 +21,22 @@ pub trait Colormap {
 
 // PNG based heightmaps
 pub struct HeightmapPNG {
-    maps: Vec<RgbImage>,
+    maps: Vec<RgbaImage>,
+    rgba_encoded: bool,
 }
 
 // Heightmap lookup
 impl Heightmap for HeightmapPNG {
     fn at(&self, x: u32, y: u32) -> u32 {
-        self.maps
+        if self.rgba_encoded {
+            self.maps
             .iter()
-            .fold(0, |sum, m| sum + m.get_pixel(x, y as u32).0[0] as u32)
+            .fold(0, |sum, m| sum + BigEndian::read_u32(&m.get_pixel(x, y).0))
+        } else {
+            self.maps
+            .iter()
+            .fold(0, |sum, m| sum + m.get_pixel(x, y).0[0] as u32)
+        }
     }
 
     fn size(&self) -> (u32, u32) {
@@ -37,16 +46,16 @@ impl Heightmap for HeightmapPNG {
 
 // Heightmap image input
 impl HeightmapPNG {
-    pub fn new(images: Vec<&str>) -> Result<Self, String> {
+    pub fn new(images: Vec<&str>, rgba_encoded:bool) -> Result<Self, String> {
         if images.is_empty() {
             return Err("HeightmapPNG requires at least one image".to_string());
         }
 
         // read in the maps
-        let mut maps: Vec<RgbImage> = vec![];
+        let mut maps: Vec<RgbaImage> = vec![];
         for file in images {
             if let Ok(img) = image::open(file) {
-                maps.push(img.to_rgb());
+                maps.push(img.to_rgba());
             } else {
                 return Err(format!("Could not open PNG {}", file));
             }
@@ -62,7 +71,7 @@ impl HeightmapPNG {
         }
 
         // return a reference to save on memory
-        Ok(HeightmapPNG { maps })
+        Ok(HeightmapPNG { maps, rgba_encoded })
     }
 }
 

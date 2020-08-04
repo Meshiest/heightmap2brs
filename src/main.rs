@@ -27,6 +27,7 @@ fn main() {
         (@arg snap: --snap "Snap bricks to the brick grid")
         (@arg img: -i --img "Make the heightmap flat and render an image")
         (@arg old: --old "Use old unoptimized heightmap code")
+        (@arg hdmap: --hdmap "Using a high detail rgb color encoded heightmap")
     )
     .get_matches();
 
@@ -61,6 +62,7 @@ fn main() {
         tile: matches.is_present("tile"),
         snap: matches.is_present("snap"),
         img: matches.is_present("img"),
+        hdmap: matches.is_present("hdmap"),
     };
 
     println!("Reading image files");
@@ -87,7 +89,7 @@ fn main() {
             if options.img {
                 Box::new(HeightmapFlat::new(colormap.size()).unwrap())
             } else {
-                match HeightmapPNG::new(heightmap_files) {
+                match HeightmapPNG::new(heightmap_files, options.hdmap) {
                     Ok(map) => Box::new(map),
                     Err(error) => {
                         return println!("Error reading colormap: {:?}", error);
