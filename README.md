@@ -21,6 +21,7 @@ Compile or download from releases.
     FLAGS:
             --cull       Automatically remove bottom level bricks
         -h, --help       Prints help information
+            --hdmap      Using a high detail rgb color encoded heightmap
             --old        Use old unoptimized heightmap code
             --snap       Snap bricks to the brick grid
             --tile       Render bricks as tiles
