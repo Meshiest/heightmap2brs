@@ -10,8 +10,11 @@ type Col = [u8; 3];
 pub struct GenOptions {
     pub size: u32,
     pub scale: u32,
+    pub asset: u32,
     pub cull: bool,
     pub tile: bool,
+    pub micro: bool,
+    pub stud: bool,
     pub snap: bool,
     pub img: bool,
     pub hdmap: bool,
@@ -81,6 +84,8 @@ pub fn bricks_to_save(bricks: Vec<brs::Brick>) -> brs::WriteData {
         brick_assets: vec![
             String::from("PB_DefaultBrick"),
             String::from("PB_DefaultTile"),
+            String::from("PB_DefaultMicroBrick"),
+            String::from("PB_DefaultStudded"),
         ],
         colors: vec![],
         materials: vec![String::from("BMC_Plastic")],

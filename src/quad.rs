@@ -286,7 +286,7 @@ impl QuadTree {
                     let height = height + height % 2;
 
                     bricks.push(brs::Brick {
-                        asset_name_index: options.tile.into(),
+                        asset_name_index: options.asset,
                         size: (t.size.0 * options.size, t.size.1 * options.size, height),
                         position: (
                             ((t.center.0 * 2 + t.size.0) * options.size) as i32,

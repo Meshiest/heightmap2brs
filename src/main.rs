@@ -24,6 +24,8 @@ fn main() {
         (@arg size: -s --size +takes_value "Brick stud size (default 1)")
         (@arg cull: --cull "Automatically remove bottom level bricks")
         (@arg tile: --tile "Render bricks as tiles")
+        (@arg micro: --micro "Render bricks as micro bricks")
+        (@arg stud: --stud "Render bricks as stud cubes")
         (@arg snap: --snap "Snap bricks to the brick grid")
         (@arg img: -i --img "Make the heightmap flat and render an image")
         (@arg old: --old "Use old unoptimized heightmap code")
@@ -46,7 +48,7 @@ fn main() {
     let old_mode = matches.is_present("old");
 
     // output options
-    let options = GenOptions {
+    let mut options = GenOptions {
         size: matches
             .value_of("size")
             .unwrap_or("1")
@@ -59,11 +61,24 @@ fn main() {
             .parse::<u32>()
             .expect("Scale must be integer"),
         cull: matches.is_present("cull"),
+        asset: 0,
         tile: matches.is_present("tile"),
+        micro: matches.is_present("micro"),
+        stud: matches.is_present("stud"),
         snap: matches.is_present("snap"),
         img: matches.is_present("img"),
         hdmap: matches.is_present("hdmap"),
     };
+
+    if options.tile {
+        options.asset = 1
+    } else if options.micro {
+        options.size /= 5;
+        options.asset = 2;
+    }
+    if options.stud {
+        options.asset = 3
+    }
 
     println!("Reading image files");
 
@@ -78,8 +93,8 @@ fn main() {
         Some(ext) => {
             return println!("Unsupported colormap format '{}'", ext);
         }
-        _ => {
-            return println!("Unexpected colormap format");
+        None => {
+            return println!("Missing colormap format");
         }
     };
 
@@ -92,7 +107,7 @@ fn main() {
                 match HeightmapPNG::new(heightmap_files, options.hdmap) {
                     Ok(map) => Box::new(map),
                     Err(error) => {
-                        return println!("Error reading colormap: {:?}", error);
+                        return println!("Error reading heightmap: {:?}", error);
                     }
                 }
             }
@@ -109,6 +124,6 @@ fn main() {
     println!("Writing Save to {}", out_file);
     let data = bricks_to_save(bricks);
     let mut write_dest = File::create(out_file).unwrap();
-    write_save(&mut write_dest, &data).unwrap();
+    write_save(&mut write_dest, &data).expect("Could not save file");
     println!("Done!");
 }
