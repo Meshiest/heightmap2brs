@@ -282,8 +282,9 @@ impl QuadTree {
                 while desired_height > 0 {
                     // pick height for this brick
 
-                    let height = min(max(desired_height, 2), 250) as u32;
-                    let height = height + height % 2;
+                    let height =
+                        min(max(desired_height, if options.stud { 5 } else { 2 }), 250) as u32;
+                    let height = height + height % (if options.stud { 5 } else { 2 });
 
                     bricks.push(brs::Brick {
                         asset_name_index: options.asset,
