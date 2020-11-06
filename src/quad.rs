@@ -288,7 +288,16 @@ impl QuadTree {
 
                     bricks.push(brs::Brick {
                         asset_name_index: options.asset,
-                        size: (t.size.0 * options.size, t.size.1 * options.size, height),
+                        size: (
+                            t.size.0 * options.size,
+                            t.size.1 * options.size,
+                            // if it's a microbrick image, just use the block size so it's cubes
+                            if options.img && options.micro {
+                                options.size
+                            } else {
+                                height
+                            },
+                        ),
                         position: (
                             ((t.center.0 * 2 + t.size.0) * options.size) as i32,
                             ((t.center.1 * 2 + t.size.1) * options.size) as i32,
