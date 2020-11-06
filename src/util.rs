@@ -31,11 +31,12 @@ pub fn to_linear_gamma(c: u8) -> u8 {
 }
 
 // convert sRGB to linear rgb
-pub fn to_linear_rgb(rgb: [u8; 3]) -> [u8; 3] {
+pub fn to_linear_rgb(rgb: [u8; 4]) -> [u8; 4] {
     [
         to_linear_gamma(rgb[0]),
         to_linear_gamma(rgb[1]),
         to_linear_gamma(rgb[2]),
+        rgb[3],
     ]
 }
 

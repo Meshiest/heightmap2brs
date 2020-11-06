@@ -14,7 +14,7 @@ struct Tile {
     index: usize,
     center: (u32, u32),
     size: (u32, u32),
-    color: [u8; 3],
+    color: [u8; 4],
     height: u32,
     neighbors: HashSet<u32>,
     parent: Option<usize>,
@@ -257,7 +257,7 @@ impl QuadTree {
             .into_iter()
             .map(|t| {
                 let t = t.borrow();
-                if t.parent.is_some() || options.cull && t.height == 0 {
+                if t.parent.is_some() || options.cull && (t.height == 0 || t.color[3] == 0) {
                     return vec![];
                 }
 
@@ -300,7 +300,7 @@ impl QuadTree {
                         visibility: true,
                         material_index: 0,
                         color: ColorMode::Custom(Color::from_rgba(
-                            t.color[0], t.color[1], t.color[2], 255,
+                            t.color[0], t.color[1], t.color[2], t.color[3],
                         )),
                         owner_index: Some(0),
                     });

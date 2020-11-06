@@ -71,7 +71,7 @@ pub fn gen_heightmap(
                     options.size,
                     (x as i32, y as i32, z as i32),
                     height,
-                    color,
+                    [color[0], color[1], color[2]],
                     options.tile,
                 ));
 
