@@ -64,15 +64,21 @@ pub fn ez_brick(size: u32, position: Pos, height: u32, color: Col, tile: bool) -
 
 // given an array of bricks, create a save
 #[allow(unused)]
-pub fn bricks_to_save(bricks: Vec<brs::Brick>) -> brs::WriteData {
+pub fn bricks_to_save(
+    bricks: Vec<brs::Brick>,
+    owner_id: String,
+    owner_name: String,
+) -> brs::WriteData {
+    let default_id = Uuid::parse_str("a1b16aca-9627-4a16-a160-67fa9adbb7b6").unwrap();
+
     let author = User {
-        id: Uuid::parse_str("a1b16aca-9627-4a16-a160-67fa9adbb7b6").unwrap(),
-        name: String::from("Generator"),
+        id: Uuid::parse_str(&owner_id).unwrap_or(default_id),
+        name: owner_name.clone(),
     };
 
     let brick_owners = vec![User {
-        id: Uuid::parse_str("a1b16aca-9627-4a16-a160-67fa9adbb7b6").unwrap(),
-        name: String::from("Generator"),
+        id: Uuid::parse_str(&owner_id).unwrap_or(default_id),
+        name: owner_name,
     }];
 
     WriteData {
