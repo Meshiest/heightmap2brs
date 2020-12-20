@@ -22,9 +22,11 @@ Compile or download from releases.
             --cull       Automatically remove bottom level bricks
         -h, --help       Prints help information
             --hdmap      Using a high detail rgb color encoded heightmap
+            --micro      Render bricks as micro bricks
             --old        Use old unoptimized heightmap code
             --snap       Snap bricks to the brick grid
             --tile       Render bricks as tiles
+            --stud       Render bricks as stud cubes
         -i  --img        Make heightmap flat (use as img2brick)
         -V, --version    Prints version information
 
