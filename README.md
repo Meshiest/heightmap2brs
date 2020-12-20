@@ -22,9 +22,11 @@ Compile or download from releases.
             --cull       Automatically remove bottom level bricks
         -h, --help       Prints help information
             --hdmap      Using a high detail rgb color encoded heightmap
+            --micro      Render bricks as micro bricks
             --old        Use old unoptimized heightmap code
             --snap       Snap bricks to the brick grid
             --tile       Render bricks as tiles
+            --stud       Render bricks as stud cubes
         -i  --img        Make heightmap flat (use as img2brick)
         -V, --version    Prints version information
 
@@ -33,6 +35,8 @@ Compile or download from releases.
         -o, --output <output>        Output BRS file
         -s, --size <size>            Brick stud size (default 1)
         -v, --vertical <vertical>    Vertical scale multiplier (default 1)
+        --owner <owner>              Set the owner name (default Generator)
+        --owner_id <owner_id>        Set the owner id (default a1b16aca-9627-4a16-a160-67fa9adbb7b6)
 
     ARGS:
         <INPUT>...    Input heightmap PNG images

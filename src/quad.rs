@@ -14,7 +14,7 @@ struct Tile {
     index: usize,
     center: (u32, u32),
     size: (u32, u32),
-    color: [u8; 3],
+    color: [u8; 4],
     height: u32,
     neighbors: HashSet<u32>,
     parent: Option<usize>,
@@ -257,7 +257,7 @@ impl QuadTree {
             .into_iter()
             .map(|t| {
                 let t = t.borrow();
-                if t.parent.is_some() || options.cull && t.height == 0 {
+                if t.parent.is_some() || options.cull && (t.height == 0 || t.color[3] == 0) {
                     return vec![];
                 }
 
@@ -282,12 +282,22 @@ impl QuadTree {
                 while desired_height > 0 {
                     // pick height for this brick
 
-                    let height = min(max(desired_height, 2), 250) as u32;
-                    let height = height + height % 2;
+                    let height =
+                        min(max(desired_height, if options.stud { 5 } else { 2 }), 250) as u32;
+                    let height = height + height % (if options.stud { 5 } else { 2 });
 
                     bricks.push(brs::Brick {
-                        asset_name_index: options.tile.into(),
-                        size: (t.size.0 * options.size, t.size.1 * options.size, height),
+                        asset_name_index: options.asset,
+                        size: (
+                            t.size.0 * options.size,
+                            t.size.1 * options.size,
+                            // if it's a microbrick image, just use the block size so it's cubes
+                            if options.img && options.micro {
+                                options.size
+                            } else {
+                                height
+                            },
+                        ),
                         position: (
                             ((t.center.0 * 2 + t.size.0) * options.size) as i32,
                             ((t.center.1 * 2 + t.size.1) * options.size) as i32,
@@ -299,7 +309,7 @@ impl QuadTree {
                         visibility: true,
                         material_index: 0,
                         color: ColorMode::Custom(Color::from_rgba(
-                            t.color[0], t.color[1], t.color[2], 255,
+                            t.color[0], t.color[1], t.color[2], t.color[3],
                         )),
                         owner_index: Some(0),
                     });

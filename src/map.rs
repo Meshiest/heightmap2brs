@@ -1,8 +1,8 @@
-extern crate image;
 extern crate byteorder;
+extern crate image;
 
-use image::{RgbaImage, RgbImage};
-use byteorder::{ByteOrder, BigEndian};
+use byteorder::{BigEndian, ByteOrder};
+use image::RgbaImage;
 use std::result::Result;
 
 use crate::util::to_linear_rgb;
@@ -15,7 +15,7 @@ pub trait Heightmap {
 
 // generic colormap trait returns color from X and Y
 pub trait Colormap {
-    fn at(&self, x: u32, y: u32) -> [u8; 3];
+    fn at(&self, x: u32, y: u32) -> [u8; 4];
     fn size(&self) -> (u32, u32);
 }
 
@@ -30,12 +30,12 @@ impl Heightmap for HeightmapPNG {
     fn at(&self, x: u32, y: u32) -> u32 {
         if self.rgba_encoded {
             self.maps
-            .iter()
-            .fold(0, |sum, m| sum + BigEndian::read_u32(&m.get_pixel(x, y).0))
+                .iter()
+                .fold(0, |sum, m| sum + BigEndian::read_u32(&m.get_pixel(x, y).0))
         } else {
             self.maps
-            .iter()
-            .fold(0, |sum, m| sum + m.get_pixel(x, y).0[0] as u32)
+                .iter()
+                .fold(0, |sum, m| sum + m.get_pixel(x, y).0[0] as u32)
         }
     }
 
@@ -46,7 +46,7 @@ impl Heightmap for HeightmapPNG {
 
 // Heightmap image input
 impl HeightmapPNG {
-    pub fn new(images: Vec<&str>, rgba_encoded:bool) -> Result<Self, String> {
+    pub fn new(images: Vec<&str>, rgba_encoded: bool) -> Result<Self, String> {
         if images.is_empty() {
             return Err("HeightmapPNG requires at least one image".to_string());
         }
@@ -102,12 +102,12 @@ impl HeightmapFlat {
 
 // PNG based colormap
 pub struct ColormapPNG {
-    source: RgbImage,
+    source: RgbaImage,
 }
 
 // Read in a color from X, Y
 impl Colormap for ColormapPNG {
-    fn at(&self, x: u32, y: u32) -> [u8; 3] {
+    fn at(&self, x: u32, y: u32) -> [u8; 4] {
         to_linear_rgb(self.source.get_pixel(x, y as u32).0)
     }
 
@@ -121,7 +121,7 @@ impl ColormapPNG {
     pub fn new(file: &str) -> Result<Self, String> {
         if let Ok(img) = image::open(file) {
             Ok(ColormapPNG {
-                source: img.to_rgb(),
+                source: img.to_rgba(),
             })
         } else {
             Err(format!("Could not open PNG {}", file))

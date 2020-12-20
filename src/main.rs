@@ -14,7 +14,7 @@ use std::fs::File;
 
 fn main() {
     let matches = clap_app!(heightmap =>
-        (version: "0.3.6")
+        (version: "0.3.7")
         (author: "github.com/Meshiest")
         (about: "Converts heightmap png files to Brickadia save files")
         (@arg INPUT: +required +multiple "Input heightmap PNG images")
@@ -24,10 +24,14 @@ fn main() {
         (@arg size: -s --size +takes_value "Brick stud size (default 1)")
         (@arg cull: --cull "Automatically remove bottom level bricks")
         (@arg tile: --tile "Render bricks as tiles")
+        (@arg micro: --micro "Render bricks as micro bricks")
+        (@arg stud: --stud "Render bricks as stud cubes")
         (@arg snap: --snap "Snap bricks to the brick grid")
         (@arg img: -i --img "Make the heightmap flat and render an image")
         (@arg old: --old "Use old unoptimized heightmap code")
         (@arg hdmap: --hdmap "Using a high detail rgb color encoded heightmap")
+        (@arg owner_id: --owner_id  +takes_value "Set the owner id (default a1b16aca-9627-4a16-a160-67fa9adbb7b6)")
+        (@arg owner: --owner +takes_value "Set the owner name (default Generator)")
     )
     .get_matches();
 
@@ -42,11 +46,18 @@ fn main() {
         .unwrap_or("../autogen.brs")
         .to_string();
 
+    // owner values
+    let owner_id = matches
+        .value_of("owner_id")
+        .unwrap_or("a1b16aca-9627-4a16-a160-67fa9adbb7b6")
+        .to_string();
+    let owner_name = matches.value_of("owner").unwrap_or("Generator").to_string();
+
     // determine generator mode
     let old_mode = matches.is_present("old");
 
     // output options
-    let options = GenOptions {
+    let mut options = GenOptions {
         size: matches
             .value_of("size")
             .unwrap_or("1")
@@ -59,11 +70,24 @@ fn main() {
             .parse::<u32>()
             .expect("Scale must be integer"),
         cull: matches.is_present("cull"),
+        asset: 0,
         tile: matches.is_present("tile"),
+        micro: matches.is_present("micro"),
+        stud: matches.is_present("stud"),
         snap: matches.is_present("snap"),
         img: matches.is_present("img"),
         hdmap: matches.is_present("hdmap"),
     };
+
+    if options.tile {
+        options.asset = 1
+    } else if options.micro {
+        options.size /= 5;
+        options.asset = 2;
+    }
+    if options.stud {
+        options.asset = 3
+    }
 
     println!("Reading image files");
 
@@ -78,8 +102,8 @@ fn main() {
         Some(ext) => {
             return println!("Unsupported colormap format '{}'", ext);
         }
-        _ => {
-            return println!("Unexpected colormap format");
+        None => {
+            return println!("Missing colormap format for '{}'", colormap_file);
         }
     };
 
@@ -92,7 +116,7 @@ fn main() {
                 match HeightmapPNG::new(heightmap_files, options.hdmap) {
                     Ok(map) => Box::new(map),
                     Err(error) => {
-                        return println!("Error reading colormap: {:?}", error);
+                        return println!("Error reading heightmap: {:?}", error);
                     }
                 }
             }
@@ -107,8 +131,8 @@ fn main() {
     };
 
     println!("Writing Save to {}", out_file);
-    let data = bricks_to_save(bricks);
+    let data = bricks_to_save(bricks, owner_id, owner_name);
     let mut write_dest = File::create(out_file).unwrap();
-    write_save(&mut write_dest, &data).unwrap();
+    write_save(&mut write_dest, &data).expect("Could not save file");
     println!("Done!");
 }
