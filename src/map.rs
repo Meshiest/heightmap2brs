@@ -103,12 +103,17 @@ impl HeightmapFlat {
 // PNG based colormap
 pub struct ColormapPNG {
     source: RgbaImage,
+    lrgb: bool,
 }
 
 // Read in a color from X, Y
 impl Colormap for ColormapPNG {
     fn at(&self, x: u32, y: u32) -> [u8; 4] {
-        to_linear_rgb(self.source.get_pixel(x, y as u32).0)
+        if self.lrgb {
+            self.source.get_pixel(x, y as u32).0
+        } else {
+            to_linear_rgb(self.source.get_pixel(x, y as u32).0)
+        }
     }
 
     fn size(&self) -> (u32, u32) {
@@ -118,10 +123,11 @@ impl Colormap for ColormapPNG {
 
 // Colormap image input
 impl ColormapPNG {
-    pub fn new(file: &str) -> Result<Self, String> {
+    pub fn new(file: &str, lrgb: bool) -> Result<Self, String> {
         if let Ok(img) = image::open(file) {
             Ok(ColormapPNG {
                 source: img.to_rgba(),
+                lrgb,
             })
         } else {
             Err(format!("Could not open PNG {}", file))

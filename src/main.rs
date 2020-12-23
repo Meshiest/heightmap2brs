@@ -14,7 +14,7 @@ use std::fs::File;
 
 fn main() {
     let matches = clap_app!(heightmap =>
-        (version: "0.3.7")
+        (version: "0.3.8")
         (author: "github.com/Meshiest")
         (about: "Converts heightmap png files to Brickadia save files")
         (@arg INPUT: +required +multiple "Input heightmap PNG images")
@@ -27,6 +27,7 @@ fn main() {
         (@arg micro: --micro "Render bricks as micro bricks")
         (@arg stud: --stud "Render bricks as stud cubes")
         (@arg snap: --snap "Snap bricks to the brick grid")
+        (@arg lrgb: --lrgb "Use linear rgb input color instead of sRGB")
         (@arg img: -i --img "Make the heightmap flat and render an image")
         (@arg old: --old "Use old unoptimized heightmap code")
         (@arg hdmap: --hdmap "Using a high detail rgb color encoded heightmap")
@@ -43,7 +44,7 @@ fn main() {
         .to_string();
     let out_file = matches
         .value_of("output")
-        .unwrap_or("../autogen.brs")
+        .unwrap_or("./out.brs")
         .to_string();
 
     // owner values
@@ -77,6 +78,7 @@ fn main() {
         snap: matches.is_present("snap"),
         img: matches.is_present("img"),
         hdmap: matches.is_present("hdmap"),
+        lrgb: matches.is_present("lrgb"),
     };
 
     if options.tile {
@@ -93,7 +95,7 @@ fn main() {
 
     // colormap file parsing
     let colormap = match file_ext(&colormap_file.to_lowercase()) {
-        Some("png") => match ColormapPNG::new(&colormap_file) {
+        Some("png") => match ColormapPNG::new(&colormap_file, options.lrgb) {
             Ok(map) => map,
             Err(error) => {
                 return println!("Error reading colormap: {:?}", error);
