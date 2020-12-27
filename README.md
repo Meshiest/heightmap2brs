@@ -19,7 +19,7 @@ Compile or download from releases.
         heightmap.exe [FLAGS] [OPTIONS] <INPUT>
 
     FLAGS:
-            --cull       Automatically remove bottom level bricks
+            --cull       Automatically remove bottom level bricks and fully transparent bricks
         -h, --help       Prints help information
             --hdmap      Using a high detail rgb color encoded heightmap
             --micro      Render bricks as micro bricks

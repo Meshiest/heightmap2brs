@@ -22,7 +22,7 @@ fn main() {
         (@arg colormap: -c --colormap +takes_value "Input colormap PNG image")
         (@arg vertical: -v --vertical +takes_value "Vertical scale multiplier (default 1)")
         (@arg size: -s --size +takes_value "Brick stud size (default 1)")
-        (@arg cull: --cull "Automatically remove bottom level bricks")
+        (@arg cull: --cull "Automatically remove bottom level bricks and fully transparent bricks")
         (@arg tile: --tile "Render bricks as tiles")
         (@arg micro: --micro "Render bricks as micro bricks")
         (@arg stud: --stud "Render bricks as stud cubes")
