@@ -31,6 +31,7 @@ fn main() {
         (@arg img: -i --img "Make the heightmap flat and render an image")
         (@arg old: --old "Use old unoptimized heightmap code")
         (@arg hdmap: --hdmap "Using a high detail rgb color encoded heightmap")
+        (@arg nocollide: --nocollide "Disable brick collision")
         (@arg owner_id: --owner_id  +takes_value "Set the owner id (default a1b16aca-9627-4a16-a160-67fa9adbb7b6)")
         (@arg owner: --owner +takes_value "Set the owner name (default Generator)")
     )
@@ -79,6 +80,7 @@ fn main() {
         img: matches.is_present("img"),
         hdmap: matches.is_present("hdmap"),
         lrgb: matches.is_present("lrgb"),
+        nocollide: matches.is_present("nocollide"),
     };
 
     if options.tile {

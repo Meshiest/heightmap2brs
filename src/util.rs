@@ -18,6 +18,8 @@ pub struct GenOptions {
     pub snap: bool,
     pub img: bool,
     pub hdmap: bool,
+    pub lrgb: bool,
+    pub nocollide: bool,
 }
 
 // convert gamma to linear gamma

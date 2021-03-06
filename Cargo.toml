@@ -1,6 +1,6 @@
 [package]
 name = "heightmap"
-version = "0.3.8"
+version = "0.3.9"
 authors = ["Meshiest <meek.mesh@gmail.com>"]
 edition = "2018"
 

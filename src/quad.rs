@@ -305,7 +305,7 @@ impl QuadTree {
                         ),
                         direction: Direction::ZPositive,
                         rotation: Rotation::Deg0,
-                        collision: true,
+                        collision: !options.nocollide,
                         visibility: true,
                         material_index: 0,
                         color: ColorMode::Custom(Color::from_rgba(
