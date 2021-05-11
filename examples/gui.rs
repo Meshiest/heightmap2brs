@@ -16,7 +16,7 @@ enum BrickMode {
 
 #[derive(Debug, Clone)]
 pub struct HeightmapApp {
-    // Example stuff:
+    // options for the generator
     heightmaps: Rc<RefCell<Vec<String>>>,
     colormap: Rc<RefCell<Option<String>>>,
     owner_name: String,
@@ -121,7 +121,7 @@ impl HeightmapApp {
 impl Default for HeightmapApp {
     fn default() -> Self {
         Self {
-            // Example stuff:
+            // default generator options
             heightmaps: Rc::new(RefCell::new(vec![])),
             colormap: Rc::new(RefCell::new(None)),
             owner_name: "Generator".to_string(),
@@ -148,6 +148,7 @@ impl epi::App for HeightmapApp {
     /// Put your widgets into a `SidePanel`, `TopPanel`, `CentralPanel`, `Window` or `Area`.
     fn update(&mut self, ctx: &egui::CtxRef, _frame: &mut epi::Frame<'_>) {
         egui::CentralPanel::default().show(ctx, |ui| {
+            // header
             ui.horizontal(|ui|{
                 ui.heading("heightmap2brs");
                 ui.label("v0.4.0");
@@ -161,6 +162,7 @@ impl epi::App for HeightmapApp {
             ui.heading("Settings");
             ui.label("Configure how the generator outputs the saves as bricks");
 
+            // list of settings
             egui::Grid::new("settings_grid")
                 .striped(true)
                 .spacing([40.0, 4.0])
@@ -226,6 +228,7 @@ impl epi::App for HeightmapApp {
             ui.heading("Heightmap Images");
             ui.label("Select image files to use for save generation.");
 
+            // handle heightmap multiple file selection
             if ui.button("select images").clicked() {
                 let result = nfd::dialog_multiple().filter("png").open().unwrap_or_else(|e| {
                     panic!("{}", e);
@@ -260,6 +263,7 @@ impl epi::App for HeightmapApp {
             ui.heading("Colormap Images");
             ui.label("Select image files to use for heightmap coloring. Select only a colormap for img2brick mode.");
 
+            // handle colormap single file selection
             if ui.button("select colormap image").clicked() {
                 let result = nfd::dialog().filter("png").open().unwrap_or_else(|e| {
                     panic!("{}", e);
@@ -282,6 +286,7 @@ impl epi::App for HeightmapApp {
             }
             ui.separator();
 
+            // display different text based on the selected image files
             let heightmap_ok = self.heightmaps.borrow().len() > 0;
             let colormap_ok = self.colormap.borrow().is_some();
             if heightmap_ok || colormap_ok {
@@ -302,6 +307,7 @@ impl epi::App for HeightmapApp {
     }
 }
 
+// run the window with glium
 fn main() {
     let app = HeightmapApp::default();
     egui_glium::run(
