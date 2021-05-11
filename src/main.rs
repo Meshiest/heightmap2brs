@@ -1,7 +1,7 @@
-mod map;
-mod old;
-mod quad;
-mod util;
+pub mod map;
+pub mod old;
+pub mod quad;
+pub mod util;
 
 use crate::map::*;
 use crate::old::gen_heightmap;
@@ -14,7 +14,7 @@ use std::fs::File;
 
 fn main() {
     let matches = clap_app!(heightmap =>
-        (version: "0.3.8")
+        (version: "0.4.0")
         (author: "github.com/Meshiest")
         (about: "Converts heightmap png files to Brickadia save files")
         (@arg INPUT: +required +multiple "Input heightmap PNG images")

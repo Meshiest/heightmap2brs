@@ -4,10 +4,13 @@
 
 ![Example output](https://i.imgur.com/QdPLN09.png)
 ![GTAV Map](https://i.imgur.com/J9XpmT3.png)
+![Gui](https://i.imgur.com/h8fU5Xb.png)
 
 ### Compiling
 
 You need [rust](https://www.rust-lang.org/).
+
+Run `cargo build` for the CLI, `cargo build --example gui` for the gui.
 
 ### Usage
 
@@ -22,6 +25,7 @@ Compile or download from releases.
             --cull       Automatically remove bottom level bricks and fully transparent bricks
         -h, --help       Prints help information
             --hdmap      Using a high detail rgb color encoded heightmap
+            --lrgb       Use linear rgb input color instead of sRGB
             --micro      Render bricks as micro bricks
             --nocollide  Disable brick collision
             --old        Use old unoptimized heightmap code

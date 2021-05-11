@@ -55,7 +55,7 @@ impl HeightmapPNG {
         let mut maps: Vec<RgbaImage> = vec![];
         for file in images {
             if let Ok(img) = image::open(file) {
-                maps.push(img.to_rgba());
+                maps.push(img.to_rgba8());
             } else {
                 return Err(format!("Could not open PNG {}", file));
             }
@@ -126,7 +126,7 @@ impl ColormapPNG {
     pub fn new(file: &str, lrgb: bool) -> Result<Self, String> {
         if let Ok(img) = image::open(file) {
             Ok(ColormapPNG {
-                source: img.to_rgba(),
+                source: img.to_rgba8(),
                 lrgb,
             })
         } else {
