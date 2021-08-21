@@ -152,7 +152,7 @@ impl epi::App for HeightmapApp {
             // header
             ui.horizontal(|ui|{
                 ui.heading("heightmap2brs");
-                ui.label("v0.4.0");
+                ui.label("v0.4.1");
             });
             ui.hyperlink("https://github.com/brickadia-community/heightmap2brs");
             ui.label("Converts heightmap png files to Brickadia save files, also works as img2brick");
