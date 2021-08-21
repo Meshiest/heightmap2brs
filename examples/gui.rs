@@ -68,11 +68,12 @@ impl HeightmapApp {
             .iter()
             .map(|s| s.as_ref())
             .collect::<Vec<&str>>();
+        let first_heightmap = heightmap_files.first().map(|s| s.to_owned()).unwrap_or("");
         let colormap_file = self
             .colormap
             .borrow()
             .as_ref()
-            .unwrap_or(&heightmap_files[0].to_string())
+            .unwrap_or(&first_heightmap.to_string())
             .to_string();
 
         // colormap file parsing
@@ -260,8 +261,8 @@ impl epi::App for HeightmapApp {
 
             ui.separator();
 
-            ui.heading("Colormap Images");
-            ui.label("Select image files to use for heightmap coloring. Select only a colormap for img2brick mode.");
+            ui.heading("Colormap Image");
+            ui.label("Select image file to use for heightmap coloring. Select only a colormap for img2brick mode.");
 
             // handle colormap single file selection
             if ui.button("select colormap image").clicked() {

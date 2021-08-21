@@ -150,7 +150,7 @@ impl QuadTree {
         let mut count = 0;
         macro_rules! get_at {
             ($x:expr, $y:expr) => {
-                &self.tiles[($y + $x * self.height) as usize];
+                &self.tiles[($y + $x * self.height) as usize]
             };
         }
 
@@ -194,7 +194,7 @@ impl QuadTree {
         let mut count = 0;
         macro_rules! get_at {
             ($x:expr, $y:expr) => {
-                &self.tiles[($y + $x * self.height) as usize];
+                &self.tiles[($y + $x * self.height) as usize]
             };
         }
 
