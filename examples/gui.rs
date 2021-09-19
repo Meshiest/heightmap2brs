@@ -184,11 +184,11 @@ impl epi::App for HeightmapApp {
 
                     ui.label("Horizontal Scale")
                         .on_hover_text("The size of each pixel in studs (or microbricks)");
-                    ui.add(egui::Slider::new(&mut self.vertical_scale, 1..=100).text("studs"));
+                    ui.add(egui::Slider::new(&mut self.horizontal_size, 1..=100).text("studs"));
                     ui.end_row();
                     ui.label("Vertical Size")
                         .on_hover_text("The height of each shade of grey from the heightmap");
-                    ui.add(egui::Slider::new(&mut self.horizontal_size, 1..=100).text("units"));
+                    ui.add(egui::Slider::new(&mut self.vertical_scale, 1..=100).text("units"));
                     ui.end_row();
 
                     ui.label("Options")
