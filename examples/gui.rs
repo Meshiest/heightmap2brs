@@ -1,6 +1,6 @@
 #![allow(dead_code, unused_variables)]
 
-use brickadia::write::{self, SaveWriter};
+use brickadia::write::SaveWriter;
 
 use {
     heightmap::{map::*, quad::*, util::*},
@@ -157,7 +157,7 @@ impl epi::App for HeightmapApp {
             // header
             ui.horizontal(|ui|{
                 ui.heading("heightmap2brs");
-                ui.label("v0.4.2");
+                ui.label("v0.5.0");
             });
             ui.hyperlink("https://github.com/brickadia-community/heightmap2brs");
             ui.label("Converts heightmap png files to Brickadia save files, also works as img2brick");
