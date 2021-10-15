@@ -1,10 +1,12 @@
-extern crate brs;
 extern crate image;
 
 use crate::map::*;
 use crate::util::*;
-use brs::*;
-
+use brickadia::save::Brick;
+use brickadia::save::BrickColor;
+use brickadia::save::Collision;
+use brickadia::save::Color;
+use brickadia::save::Size;
 use std::cell::RefCell;
 use std::cmp::{max, min};
 use std::collections::HashSet;
@@ -286,9 +288,9 @@ impl QuadTree {
                         min(max(desired_height, if options.stud { 5 } else { 2 }), 250) as u32;
                     let height = height + height % (if options.stud { 5 } else { 2 });
 
-                    bricks.push(brs::Brick {
+                    bricks.push(Brick {
                         asset_name_index: options.asset,
-                        size: (
+                        size: Size::Procedural(
                             t.size.0 * options.size,
                             t.size.1 * options.size,
                             // if it's a microbrick image, just use the block size so it's cubes
@@ -303,15 +305,22 @@ impl QuadTree {
                             ((t.center.1 * 2 + t.size.1) * options.size) as i32,
                             z as i32 - height as i32 + 2,
                         ),
-                        direction: Direction::ZPositive,
-                        rotation: Rotation::Deg0,
-                        collision: !options.nocollide,
-                        visibility: true,
-                        material_index: 0,
-                        color: ColorMode::Custom(Color::from_rgba(
-                            t.color[0], t.color[1], t.color[2], t.color[3],
-                        )),
-                        owner_index: Some(0),
+                        collision: Collision {
+                            player: !options.nocollide,
+                            weapon: !options.nocollide,
+                            interaction: !options.nocollide,
+                            tool: true,
+                        },
+                        color: BrickColor::Unique(Color {
+                            r: t.color[0],
+                            g: t.color[1],
+                            b: t.color[2],
+                            a: t.color[3],
+                        }),
+                        owner_index: 1,
+                        material_intensity: 0,
+                        material_index: if options.glow { 1 } else { 0 },
+                        ..Default::default()
                     });
 
                     // update Z and remaining height

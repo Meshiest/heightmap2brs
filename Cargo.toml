@@ -1,15 +1,15 @@
 [package]
 name = "heightmap"
-version = "0.4.2"
+version = "0.5.0"
 authors = ["Meshiest <meek.mesh@gmail.com>"]
 edition = "2018"
-resolver = "2"
 
 [dependencies]
-brs = "0.2.0"
+brickadia = "0.1.24"
 image = "0.23.4"
 clap = "2.33.0"
 byteorder = "1.3.4"
+uuid = "0.8.2"
 
 [dev-dependencies]
 nfd = "0.0.4"

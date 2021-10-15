@@ -1,20 +1,18 @@
 pub mod map;
-pub mod old;
 pub mod quad;
 pub mod util;
 
 use crate::map::*;
-use crate::old::gen_heightmap;
 use crate::quad::*;
 use crate::util::*;
-use brs::*;
+use brickadia::write::SaveWriter;
 use clap::clap_app;
 use std::boxed::Box;
 use std::fs::File;
 
 fn main() {
     let matches = clap_app!(heightmap =>
-        (version: "0.4.0")
+        (version: "0.5.0")
         (author: "github.com/Meshiest")
         (about: "Converts heightmap png files to Brickadia save files")
         (@arg INPUT: +required +multiple "Input heightmap PNG images")
@@ -29,7 +27,7 @@ fn main() {
         (@arg snap: --snap "Snap bricks to the brick grid")
         (@arg lrgb: --lrgb "Use linear rgb input color instead of sRGB")
         (@arg img: -i --img "Make the heightmap flat and render an image")
-        (@arg old: --old "Use old unoptimized heightmap code")
+        (@arg glow: --glow "Make the heightmap glow at 0 intensity")
         (@arg hdmap: --hdmap "Using a high detail rgb color encoded heightmap")
         (@arg nocollide: --nocollide "Disable brick collision")
         (@arg owner_id: --owner_id  +takes_value "Set the owner id (default a1b16aca-9627-4a16-a160-67fa9adbb7b6)")
@@ -55,9 +53,6 @@ fn main() {
         .to_string();
     let owner_name = matches.value_of("owner").unwrap_or("Generator").to_string();
 
-    // determine generator mode
-    let old_mode = matches.is_present("old");
-
     // output options
     let mut options = GenOptions {
         size: matches
@@ -78,6 +73,7 @@ fn main() {
         stud: matches.is_present("stud"),
         snap: matches.is_present("snap"),
         img: matches.is_present("img"),
+        glow: matches.is_present("glow"),
         hdmap: matches.is_present("hdmap"),
         lrgb: matches.is_present("lrgb"),
         nocollide: matches.is_present("nocollide"),
@@ -128,15 +124,12 @@ fn main() {
             return println!("Unsupported heightmap format");
         };
 
-    let bricks = if old_mode {
-        gen_heightmap(&*heightmap, &colormap, options)
-    } else {
-        gen_opt_heightmap(&*heightmap, &colormap, options)
-    };
+    let bricks = gen_opt_heightmap(&*heightmap, &colormap, options);
 
     println!("Writing Save to {}", out_file);
     let data = bricks_to_save(bricks, owner_id, owner_name);
-    let mut write_dest = File::create(out_file).unwrap();
-    write_save(&mut write_dest, &data).expect("Could not save file");
+    SaveWriter::new(File::create(out_file).unwrap(), data)
+        .write()
+        .expect("Failed to write file!");
     println!("Done!");
 }

@@ -1,11 +1,7 @@
-extern crate brs;
-use brs::*;
-use brs::{chrono::DateTime, uuid::Uuid};
+use brickadia::save::{Brick, BrickOwner, Header1, Header2, SaveData, User};
 use std::ffi::OsStr;
 use std::path::Path;
-
-type Pos = (i32, i32, i32);
-type Col = [u8; 3];
+use uuid::Uuid;
 
 pub struct GenOptions {
     pub size: u32,
@@ -17,6 +13,7 @@ pub struct GenOptions {
     pub stud: bool,
     pub snap: bool,
     pub img: bool,
+    pub glow: bool,
     pub hdmap: bool,
     pub lrgb: bool,
     pub nocollide: bool,
@@ -42,36 +39,9 @@ pub fn to_linear_rgb(rgb: [u8; 4]) -> [u8; 4] {
     ]
 }
 
-// Brick creation helper
-pub fn ez_brick(size: u32, position: Pos, height: u32, color: Col, tile: bool) -> brs::Brick {
-    // require brick height to be even (gen doesn't allow odd height bricks)
-    let height = height + height % 2;
-
-    brs::Brick {
-        asset_name_index: tile.into(),
-        size: (size, size, height),
-        position: (
-            position.0 * size as i32 * 2 + 5,
-            position.1 * size as i32 * 2 + 5,
-            position.2 - height as i32 + 2,
-        ),
-        direction: Direction::ZPositive,
-        rotation: Rotation::Deg0,
-        collision: true,
-        visibility: true,
-        material_index: 0,
-        color: ColorMode::Custom(Color::from_rgba(color[0], color[1], color[2], 255)),
-        owner_index: Some(0),
-    }
-}
-
 // given an array of bricks, create a save
 #[allow(unused)]
-pub fn bricks_to_save(
-    bricks: Vec<brs::Brick>,
-    owner_id: String,
-    owner_name: String,
-) -> brs::WriteData {
+pub fn bricks_to_save(bricks: Vec<Brick>, owner_id: String, owner_name: String) -> SaveData {
     let default_id = Uuid::parse_str("a1b16aca-9627-4a16-a160-67fa9adbb7b6").unwrap();
 
     let author = User {
@@ -79,27 +49,32 @@ pub fn bricks_to_save(
         name: owner_name.clone(),
     };
 
-    let brick_owners = vec![User {
+    let brick_owners = vec![BrickOwner {
         id: Uuid::parse_str(&owner_id).unwrap_or(default_id),
         name: owner_name,
+        bricks: bricks.len() as u32,
     }];
 
-    WriteData {
-        map: String::from("Plate"),
-        author,
-        description: String::from("Save generated from heightmap file"),
-        save_time: DateTime::from(std::time::SystemTime::now()),
-        mods: vec![],
-        brick_assets: vec![
-            String::from("PB_DefaultBrick"),
-            String::from("PB_DefaultTile"),
-            String::from("PB_DefaultMicroBrick"),
-            String::from("PB_DefaultStudded"),
-        ],
-        colors: vec![],
-        materials: vec![String::from("BMC_Plastic")],
-        brick_owners,
+    SaveData {
+        header1: Header1 {
+            map: String::from("https://github.com/brickadia-community"),
+            author,
+            description: String::from("Save generated from heightmap file"),
+            ..Default::default()
+        },
+        header2: Header2 {
+            brick_assets: vec![
+                String::from("PB_DefaultBrick"),
+                String::from("PB_DefaultTile"),
+                String::from("PB_DefaultMicroBrick"),
+                String::from("PB_DefaultStudded"),
+            ],
+            materials: vec!["BMC_Plastic".into(), "BMC_Glow".into()],
+            brick_owners,
+            ..Default::default()
+        },
         bricks,
+        ..Default::default()
     }
 }
 

@@ -1,7 +1,8 @@
 #![allow(dead_code, unused_variables)]
 
+use brickadia::write::{self, SaveWriter};
+
 use {
-    brs::write_save,
     heightmap::{map::*, quad::*, util::*},
     std::{boxed::Box, cell::RefCell, fs::File, path::Path, rc::Rc},
 };
@@ -29,6 +30,7 @@ pub struct HeightmapApp {
     opt_lrgb: bool,
     opt_hdmap: bool,
     opt_snap: bool,
+    opt_glow: bool,
     mode: BrickMode,
 }
 
@@ -46,6 +48,7 @@ impl HeightmapApp {
             stud: self.mode == BrickMode::Stud,
             snap: self.opt_snap,
             img: self.heightmaps.borrow().len() == 0 && self.colormap.borrow().is_some(),
+            glow: self.opt_glow,
             hdmap: self.opt_hdmap,
             lrgb: self.opt_lrgb,
             nocollide: self.opt_nocollide,
@@ -113,8 +116,9 @@ impl HeightmapApp {
 
         println!("Writing Save to {}", self.out_file);
         let data = bricks_to_save(bricks, self.owner_id.clone(), self.owner_name.clone());
-        let mut write_dest = File::create(self.out_file.clone()).unwrap();
-        write_save(&mut write_dest, &data).expect("Could not save file");
+        SaveWriter::new(File::create(self.out_file.clone()).unwrap(), data)
+            .write()
+            .expect("Failed to write file!");
         println!("Done!");
     }
 }
@@ -134,6 +138,7 @@ impl Default for HeightmapApp {
             opt_nocollide: false,
             opt_lrgb: false,
             opt_snap: false,
+            opt_glow: false,
             opt_hdmap: false,
             mode: BrickMode::Default,
         }
@@ -206,6 +211,8 @@ impl epi::App for HeightmapApp {
                             .on_hover_text("Use linear rgb input color instead of sRGB");
                         ui.checkbox(&mut self.opt_hdmap, "HD Map")
                             .on_hover_text("Using a high detail rgb color encoded heightmap");
+                        ui.checkbox(&mut self.opt_glow, "Glow")
+                            .on_hover_text("Glow bricks at lowest intensity");
                     });
                     ui.end_row();
 
