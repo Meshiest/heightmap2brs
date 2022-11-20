@@ -7,11 +7,10 @@ use brickadia::save::BrickColor;
 use brickadia::save::Collision;
 use brickadia::save::Color;
 use brickadia::save::Size;
-use std::cell::RefCell;
 use std::cmp::{max, min};
 use std::collections::HashSet;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 struct Tile {
     index: usize,
     center: (u32, u32),
@@ -23,7 +22,7 @@ struct Tile {
 }
 
 pub struct QuadTree {
-    tiles: Vec<RefCell<Tile>>,
+    tiles: Box<[Tile]>,
     width: u32,
     height: u32,
 }
@@ -69,38 +68,6 @@ impl Tile {
         bottom_left.parent = Some(self.index);
         bottom_right.parent = Some(self.index);
     }
-
-    // merge tiles that are arranged in a line
-    fn merge_line(&mut self, children: Vec<&RefCell<Tile>>) {
-        // there is nothing to merge, return
-        if children.is_empty() {
-            return;
-        }
-
-        // determine direction of this merge
-        let is_vertical = children[0].borrow().center.0 == self.center.0;
-
-        // determine the new size of the parent tile, make children point at the parent
-        let new_size = children.into_iter().fold(0, |sum, t| {
-            // assign parent, extend parent's neighbors
-            t.borrow_mut().parent = Some(self.index);
-            self.neighbors.extend(&t.borrow().neighbors);
-
-            // sum size depending on merge direction
-            sum + if is_vertical {
-                t.borrow().size.1
-            } else {
-                t.borrow().size.0
-            }
-        });
-
-        // add the size to its respective dimension
-        if is_vertical {
-            self.size.1 += new_size
-        } else {
-            self.size.0 += new_size
-        }
-    }
 }
 
 impl QuadTree {
@@ -112,12 +79,12 @@ impl QuadTree {
             panic!("Heightmap and colormap must have same dimensions");
         }
 
-        let mut tiles = vec![];
+        let mut tiles = Vec::with_capacity((width * height) as usize);
 
         // add all the tiles to the heightmap
         for x in 0..width as i32 {
             for y in 0..height as i32 {
-                tiles.push(RefCell::new(Tile {
+                tiles.push(Tile {
                     index: (x + y * height as i32) as usize,
                     center: (x as u32, y as u32),
                     // store a set of the neighbor's heights with each tile
@@ -136,25 +103,24 @@ impl QuadTree {
                     color: colormap.at(x as u32, y as u32),
                     height: heightmap.at(x as u32, y as u32),
                     parent: None,
-                }))
+                })
             }
         }
 
         QuadTree {
-            tiles,
+            tiles: tiles.into_boxed_slice(),
             width,
             height,
         }
     }
 
+    fn index(&self, x: u32, y: u32) -> usize {
+        (y + x * self.height) as usize
+    }
+
     // optimize bricks with size (level+1)
     pub fn quad_optimize_level(&mut self, level: u32) -> usize {
         let mut count = 0;
-        macro_rules! get_at {
-            ($x:expr, $y:expr) => {
-                &self.tiles[($y + $x * self.height) as usize]
-            };
-        }
 
         // step amounts
         let space = 2_u32.pow(level);
@@ -162,17 +128,27 @@ impl QuadTree {
 
         for x in (0..self.width - space).step_by(step_amt) {
             for y in (0..self.height - space).step_by(step_amt) {
-                // get neighboring tiles
-                let top_left = get_at!(x, y);
-                let top_right = get_at!(x + space, y);
-                let bottom_left = get_at!(x, y + space);
-                let bottom_right = get_at!(x + space, y + space);
+                // split vertically (left/right columns)
+                let (left, right) = self
+                    .tiles
+                    .split_at_mut(((x + space) * self.height) as usize);
+
+                // split the columns horizontally
+                let (top_left, bottom_left) =
+                    left.split_at_mut((y + space + x * self.height) as usize);
+                let (top_right, bottom_right) = right.split_at_mut((y + space) as usize);
+
+                // first of each slice is the target cell
+                let top_left = &mut top_left[(y + x * self.height) as usize];
+                let bottom_left = &mut bottom_left[0];
+                let top_right = &mut top_right[y as usize];
+                let bottom_right = &mut bottom_right[0];
 
                 // if these are not similar tiles, skip them
-                if !top_left.borrow().similar_quad(&top_right.borrow())
-                    || !top_left.borrow().similar_quad(&bottom_left.borrow())
-                    || !top_left.borrow().similar_quad(&bottom_right.borrow())
-                    || top_left.borrow().size.0 != space
+                if top_left.size.0 != space
+                    || !top_left.similar_quad(top_right)
+                    || !top_left.similar_quad(bottom_left)
+                    || !top_left.similar_quad(bottom_right)
                 {
                     continue;
                 }
@@ -180,34 +156,62 @@ impl QuadTree {
                 count += 3;
 
                 // merge the tiles into the first one
-                top_left.borrow_mut().merge_quad(
-                    &mut top_right.borrow_mut(),
-                    &mut bottom_left.borrow_mut(),
-                    &mut bottom_right.borrow_mut(),
-                );
+                top_left.merge_quad(top_right, bottom_left, bottom_right);
             }
         }
 
         count
     }
 
+    // merge tiles that are arranged in a line
+    fn merge_line(&mut self, start_i: usize, children: Vec<usize>) {
+        // there is nothing to merge, return
+        if children.is_empty() {
+            return;
+        }
+
+        let mut new_neighbors = vec![];
+
+        // determine direction of this merge
+        let is_vertical = self.tiles[children[0]].center.0 == self.tiles[start_i].center.0;
+
+        // determine the new size of the parent tile, make children point at the parent
+        let new_size = children.iter().fold(0, |sum, &i| {
+            let mut t = &mut self.tiles[i];
+            // assign parent, extend parent's neighbors
+            t.parent = Some(start_i);
+            new_neighbors.push(t.neighbors.clone());
+
+            // sum size depending on merge direction
+            sum + if is_vertical { t.size.1 } else { t.size.0 }
+        });
+
+        let mut start = &mut self.tiles[start_i];
+
+        for n in new_neighbors {
+            start.neighbors.extend(&n);
+        }
+
+        // add the size to its respective dimension
+        if is_vertical {
+            start.size.1 += new_size
+        } else {
+            start.size.0 += new_size
+        }
+    }
+
     // optimize by nearby bricks in line
     pub fn line_optimize(&mut self, tile_scale: u32) -> usize {
         let mut count = 0;
-        macro_rules! get_at {
-            ($x:expr, $y:expr) => {
-                &self.tiles[($y + $x * self.height) as usize]
-            };
-        }
-
         for x in 0..self.width {
             for y in 0..self.height {
-                let start = get_at!(x, y);
-                if start.borrow().parent.is_some() {
+                let start_i = self.index(x, y);
+                let start = &self.tiles[start_i];
+                if start.parent.is_some() {
                     continue;
                 }
 
-                let shift = start.borrow().size;
+                let shift = start.size;
                 let mut sx = shift.0;
                 let mut horiz_tiles = vec![];
                 let mut sy = shift.1;
@@ -215,38 +219,37 @@ impl QuadTree {
 
                 // determine longest horizontal merge
                 while x + sx < self.width {
-                    let t = get_at!(x + sx, y);
-                    let t_size = t.borrow().size.0;
-                    if (sx + t_size) * tile_scale > 500 || !start.borrow().similar_line(&t.borrow())
-                    {
+                    let i = self.index(x + sx, y);
+                    let t = &self.tiles[i];
+                    if (sx + t.size.0) * tile_scale > 500 || !start.similar_line(t) {
                         break;
                     }
-                    horiz_tiles.push(t);
-                    sx += t_size;
+                    horiz_tiles.push(i);
+                    sx += t.size.0;
                 }
 
                 // determine longest vertical merge
                 while y + sy < self.height {
-                    let t = get_at!(x, y + sy);
-                    let t_size = t.borrow().size.1;
-                    if (sy + t_size) * tile_scale > 500 || !start.borrow().similar_line(&t.borrow())
-                    {
+                    let i = self.index(x, y + sy);
+                    let t = &self.tiles[i];
+                    if (sy + t.size.1) * tile_scale > 500 || !start.similar_line(t) {
                         break;
                     }
-                    vert_tiles.push(t);
-                    sy += t_size;
+                    vert_tiles.push(i);
+                    sy += t.size.1;
                 }
 
                 count += max(horiz_tiles.len(), vert_tiles.len());
 
                 // merge whichever is largest
-                start
-                    .borrow_mut()
-                    .merge_line(if horiz_tiles.len() > vert_tiles.len() {
+                self.merge_line(
+                    start_i,
+                    if horiz_tiles.len() > vert_tiles.len() {
                         horiz_tiles
                     } else {
                         vert_tiles
-                    });
+                    },
+                );
             }
         }
 
@@ -254,11 +257,10 @@ impl QuadTree {
     }
 
     // convert quadtree state into bricks
-    pub fn into_bricks(self, options: GenOptions) -> Vec<Brick> {
+    pub fn into_bricks(&self, options: GenOptions) -> Vec<Brick> {
         self.tiles
-            .into_iter()
-            .map(|t| {
-                let t = t.borrow();
+            .iter()
+            .flat_map(|t| {
                 if t.parent.is_some() || options.cull && (t.height == 0 || t.color[3] == 0) {
                     return vec![];
                 }
@@ -329,7 +331,6 @@ impl QuadTree {
                 }
                 bricks
             })
-            .flatten()
             .collect()
     }
 }
