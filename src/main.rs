@@ -81,6 +81,7 @@ fn main() {
         hdmap: matches.is_present("hdmap"),
         lrgb: matches.is_present("lrgb"),
         nocollide: matches.is_present("nocollide"),
+        quadtree: true,
     };
 
     if options.tile {
@@ -128,7 +129,7 @@ fn main() {
             return error!("Unsupported heightmap format");
         };
 
-    let bricks = gen_opt_heightmap(&*heightmap, &colormap, options, |_| {})
+    let bricks = gen_opt_heightmap(&*heightmap, &colormap, options, |_| true)
         .expect("error during generation");
 
     info!("Writing Save to {}", out_file);

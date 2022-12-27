@@ -333,36 +333,48 @@ impl QuadTree {
 }
 
 // Generate a heightmap with brick conservation optimizations
-pub fn gen_opt_heightmap<F: Fn(f32)>(
+pub fn gen_opt_heightmap<F: Fn(f32) -> bool>(
     heightmap: &dyn Heightmap,
     colormap: &dyn Colormap,
     options: GenOptions,
-    progress: F,
+    progress_f: F,
 ) -> Result<Vec<Brick>, String> {
-    progress(0.0);
+    macro_rules! progress {
+        ($e:expr) => {
+            if !progress_f($e) {
+                return Err("Stopped by user".to_string());
+            }
+        };
+    }
+    progress!(0.0);
 
     info!("Building initial quadtree");
     let (width, height) = heightmap.size();
     let area = width * height;
     let mut quad = QuadTree::new(heightmap, colormap)?;
-    progress(0.2);
+    progress!(0.2);
 
-    info!("Optimizing quadtree");
-    let mut scale = 0;
+    let (prog_offset, prog_scale) = if options.quadtree {
+        info!("Optimizing quadtree");
+        let mut scale = 0;
 
-    // loop until the bricks would be too wide or we stop optimizing bricks
-    while 2_i32.pow(scale + 1) * (options.size as i32) < 500 {
-        progress(0.2 + 0.5 * (scale as f32 / (500.0 / (options.size as f32)).log2()));
-        let count = quad.quad_optimize_level(scale);
-        if count == 0 {
-            break;
-        } else {
-            info!("  Removed {:?} {}x bricks", count, 2_i32.pow(scale));
+        // loop until the bricks would be too wide or we stop optimizing bricks
+        while 2_i32.pow(scale + 1) * (options.size as i32) < 500 {
+            progress!(0.2 + 0.5 * (scale as f32 / (500.0 / (options.size as f32)).log2()));
+            let count = quad.quad_optimize_level(scale);
+            if count == 0 {
+                break;
+            } else {
+                info!("  Removed {:?} {}x bricks", count, 2_i32.pow(scale));
+            }
+            scale += 1;
         }
-        scale += 1;
-    }
+        progress!(0.7);
 
-    progress(0.7);
+        (0.7, 0.25)
+    } else {
+        (0.2, 0.75)
+    };
 
     info!("Optimizing linear");
     let mut i = 0;
@@ -370,7 +382,7 @@ pub fn gen_opt_heightmap<F: Fn(f32)>(
         i += 1;
 
         let count = quad.line_optimize(options.size);
-        progress(0.7 + 0.25 * (i as f32 / 5.0).min(1.0));
+        progress!(prog_offset + prog_scale * (i as f32 / 5.0).min(1.0));
 
         if count == 0 {
             break;
@@ -378,7 +390,7 @@ pub fn gen_opt_heightmap<F: Fn(f32)>(
         info!("  Removed {} bricks", count);
     }
 
-    progress(0.95);
+    progress!(0.95);
 
     let bricks = quad.into_bricks(options);
     let brick_count = bricks.len();
@@ -390,6 +402,6 @@ pub fn gen_opt_heightmap<F: Fn(f32)>(
         area as i32 - brick_count as i32,
     );
 
-    progress(1.0);
+    progress!(1.0);
     Ok(bricks)
 }

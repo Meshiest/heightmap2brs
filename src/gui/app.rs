@@ -1,8 +1,8 @@
 #![allow(dead_code, unused_variables)]
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     sync::mpsc::{self, Receiver, Sender},
-    thread,
+    thread::{self},
     time::Duration,
 };
 
@@ -40,6 +40,7 @@ pub struct HeightmapApp {
     out_file: String,
     vertical_scale: u32,
     horizontal_size: u32,
+    opt_quad: bool,
     opt_cull: bool,
     opt_nocollide: bool,
     opt_lrgb: bool,
@@ -51,6 +52,7 @@ pub struct HeightmapApp {
     progress_channel: (Sender<Progress>, Receiver<Progress>),
     promise: Option<Promise<Result<(), String>>>,
     texture_handles: HashMap<String, TextureHandle>,
+    gen_interrupt: Option<Sender<()>>,
 }
 
 impl Default for HeightmapApp {
@@ -64,6 +66,7 @@ impl Default for HeightmapApp {
             out_file: "out.brs".to_string(),
             vertical_scale: 1,
             horizontal_size: 1,
+            opt_quad: true,
             opt_cull: false,
             opt_nocollide: false,
             opt_lrgb: false,
@@ -75,6 +78,7 @@ impl Default for HeightmapApp {
             progress: ("Pending", 0.),
             progress_channel: mpsc::channel(),
             texture_handles: HashMap::new(),
+            gen_interrupt: None,
         }
     }
 }
@@ -96,6 +100,7 @@ impl HeightmapApp {
             hdmap: self.opt_hdmap,
             lrgb: self.opt_lrgb,
             nocollide: self.opt_nocollide,
+            quadtree: self.opt_quad,
         };
 
         if options.tile {
@@ -118,14 +123,31 @@ impl HeightmapApp {
         let options = self.options();
         let heightmap_files = self.heightmaps.clone();
         let colormap_file = self.colormap.clone();
-        let progress = self.progress_channel.0.clone();
+
+        let progress_tx = self.progress_channel.0.clone();
+        let progress = move |status, p| progress_tx.send((status, p)).unwrap();
+
+        // handle interrupts
+        let (tx, rx) = mpsc::channel::<()>();
+        self.gen_interrupt = Some(tx);
+        let is_stopped = move || rx.try_recv().is_ok();
 
         self.promise.get_or_insert_with(|| {
             info!("Preparing converter...");
             let (sender, promise) = Promise::new();
-            progress.send(("Reading", 0.)).unwrap();
+
+            progress("Reading", 0.);
 
             thread::spawn(move || {
+                macro_rules! stop_if_stopped {
+                    () => {
+                        if is_stopped() {
+                            sender.send(Err("Stopped by user".to_string()));
+                            return;
+                        }
+                    };
+                }
+
                 info!("Reading image files...");
                 let (heightmap, colormap) =
                     match maps_from_files(&options, heightmap_files, colormap_file) {
@@ -136,10 +158,12 @@ impl HeightmapApp {
                         }
                     };
 
-                progress.send(("Generating", 0.10)).unwrap();
+                stop_if_stopped!();
+                progress("Generating", 0.10);
 
                 let bricks = match gen_opt_heightmap(&*heightmap, &*colormap, options, |p| {
-                    progress.send(("Generating", 0.1 + 0.85 * p)).unwrap();
+                    progress("Generating", 0.1 + 0.85 * p);
+                    !is_stopped()
                 }) {
                     Ok(b) => b,
                     Err(err) => {
@@ -147,22 +171,25 @@ impl HeightmapApp {
                         return sender.send(Err(err));
                     }
                 };
+                stop_if_stopped!();
 
                 info!("Writing Save to {}", out_file);
-                progress.send(("Writing", 0.95)).unwrap();
+                progress("Writing", 0.95);
                 let data = bricks_to_save(bricks, owner_id, owner_name);
                 if let Err(e) = SaveWriter::new(File::create(&out_file).unwrap(), data).write() {
                     let err = format!("failed to write file: {e}");
                     error!("{err}");
                     return sender.send(Err(err));
                 }
-                progress.send(("Finshed", 1.0)).unwrap();
+                stop_if_stopped!();
+                progress("Finished", 1.0);
 
                 info!("Done!");
                 sender.send(Ok(()));
                 thread::sleep(Duration::from_millis(500));
-                progress.send(("", 2.0)).unwrap();
+                progress("", 2.0);
             });
+            // thread::self.gen_thread.unwrap().thread().
             promise
         });
     }
@@ -230,6 +257,9 @@ impl HeightmapApp {
                         .on_hover_text("Using a high detail rgb color encoded heightmap");
                     ui.checkbox(&mut self.opt_glow, "Glow")
                         .on_hover_text("Glow bricks at lowest intensity");
+                    ui.checkbox(&mut self.opt_quad, "Quadtree").on_hover_text(
+                        "Run quadtree optimization (looks much better but has a few more bricks)",
+                    );
                 });
                 ui.end_row();
 
@@ -255,7 +285,7 @@ impl HeightmapApp {
         ui.label("Select image files to use for save generation.");
 
         // handle heightmap multiple file selection
-        if ui.button("Select images").clicked() {
+        if ui.button("Select heightmaps").clicked() {
             let result = nfd::dialog_multiple()
                 .filter("png")
                 .open()
@@ -277,23 +307,31 @@ impl HeightmapApp {
 
         egui::Grid::new("heightmap_grid")
             .striped(true)
-            .spacing([4.0, 4.0])
+            .spacing([8.0, 4.0])
+            .min_col_width(4.0)
             .show(ui, |ui| {
-                for img in &self.heightmaps.clone() {
-                    self.thumb(ui, img);
+                let mut to_remove = HashSet::new();
+                for img in self.heightmaps.clone() {
+                    if ui.add(Button::new("✖")).clicked() {
+                        to_remove.insert(img.clone());
+                    }
+                    self.thumb(ui, &img);
                     ui.label(Path::new(&img).file_name().unwrap().to_str().unwrap());
                     ui.end_row();
                 }
+                self.heightmaps.retain(|i| !to_remove.contains(i));
             });
 
         ui.separator();
-        ui.add_space(4.0);
 
         ui.heading("Colormap Image");
         ui.label("Select image file to use for heightmap coloring. Select only a colormap for img2brick mode.");
 
         // handle colormap single file selection
-        if ui.button("Select colormap image").clicked() {
+        if ui
+            .add(Button::new("Select colormap").fill(Color32::from_rgb(60, 60, 120)))
+            .clicked()
+        {
             let result = nfd::dialog().filter("png").open().unwrap_or_else(|e| {
                 panic!("{}", e);
             });
@@ -311,20 +349,28 @@ impl HeightmapApp {
         }
 
         if let Some(path) = self.colormap.clone() {
-            ui.horizontal(|ui| {
-                self.thumb(ui, &path);
-                ui.label(Path::new(&path).file_name().unwrap().to_str().unwrap());
-            });
+            egui::Grid::new("colormap_grid")
+                .striped(true)
+                .spacing([8.0, 4.0])
+                .min_col_width(4.0)
+                .show(ui, |ui| {
+                    if ui.button("✖").clicked() {
+                        self.colormap = None;
+                    }
+                    self.thumb(ui, &path);
+                    ui.label(Path::new(&path).file_name().unwrap().to_str().unwrap());
+                });
         }
     }
 
-    fn draw_progress(&mut self, ctx: &Context, ui: &mut Ui) {
+    fn draw_progress(&mut self, ctx: &Context, ui: &mut Ui) -> bool {
         while let Ok(p) = self.progress_channel.1.try_recv() {
             self.progress = p;
         }
         let (progress_text, progress) = self.progress;
 
         let mut clear_promise = progress > 1.0;
+        let mut rendered = false;
 
         if let Some(p) = &self.promise {
             match p.ready() {
@@ -347,22 +393,34 @@ impl HeightmapApp {
                     });
                 }
                 None => {
-                    ui.add(
-                        ProgressBar::new(ctx.animate_value_with_time(
-                            Id::new("progress"),
-                            progress,
-                            0.1,
-                        ))
-                        .text(progress_text)
-                        .animate(true),
-                    );
+                    ui.horizontal(|ui| {
+                        let stop_btn = ui.button("Stop");
+                        ui.add(
+                            ProgressBar::new(ctx.animate_value_with_time(
+                                Id::new("progress"),
+                                progress,
+                                0.1,
+                            ))
+                            .text(progress_text)
+                            .animate(true),
+                        );
+                        if let (true, Some(tx)) = (stop_btn.clicked(), &self.gen_interrupt) {
+                            info!("Sending interrupt...");
+                            if let Err(e) = tx.send(()) {
+                                error!("error sending interrupt {e}");
+                            }
+                        }
+                    });
                 }
             }
+            rendered = true;
         }
 
         if clear_promise {
             self.promise = None
         }
+
+        rendered
     }
 
     fn draw_submit(&mut self, ui: &mut Ui) {
@@ -383,7 +441,7 @@ impl HeightmapApp {
                         (false, true) => "Generate image2brick save",
                         (false, false) => unreachable!(),
                     })
-                    .fill(Color32::DARK_GREEN),
+                    .fill(Color32::from_rgb(50, 90, 50)),
                 )
                 .clicked()
             {
@@ -418,8 +476,9 @@ impl App for HeightmapApp {
                 ui.separator();
                 self.draw_settings(ui);
                 ui.separator();
-                self.draw_progress(ctx, ui);
-                self.draw_submit(ui);
+                if !self.draw_progress(ctx, ui) {
+                    self.draw_submit(ui);
+                }
             });
 
             TopBottomPanel::bottom(Id::new("logs"))

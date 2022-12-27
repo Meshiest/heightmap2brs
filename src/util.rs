@@ -17,6 +17,7 @@ pub struct GenOptions {
     pub hdmap: bool,
     pub lrgb: bool,
     pub nocollide: bool,
+    pub quadtree: bool,
 }
 
 // convert gamma to linear gamma
