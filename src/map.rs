@@ -1,6 +1,3 @@
-extern crate byteorder;
-extern crate image;
-
 use byteorder::{BigEndian, ByteOrder};
 use image::RgbaImage;
 use std::result::Result;
@@ -110,9 +107,9 @@ pub struct ColormapPNG {
 impl Colormap for ColormapPNG {
     fn at(&self, x: u32, y: u32) -> [u8; 4] {
         if self.lrgb {
-            self.source.get_pixel(x, y as u32).0
+            self.source.get_pixel(x, y).0
         } else {
-            to_linear_rgb(self.source.get_pixel(x, y as u32).0)
+            to_linear_rgb(self.source.get_pixel(x, y).0)
         }
     }
 

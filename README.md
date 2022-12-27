@@ -4,13 +4,13 @@
 
 ![Example output](https://i.imgur.com/QdPLN09.png)
 ![GTAV Map](https://i.imgur.com/J9XpmT3.png)
-![Gui](https://i.imgur.com/h8fU5Xb.png)
+![Gui](https://i.imgur.com/8v9MXnl.png)
 
 ### Compiling
 
 You need [rust](https://www.rust-lang.org/).
 
-Run `cargo build` for the CLI, `cargo build --example gui` for the gui.
+Run `cargo build` for the CLI, `cargo build --bin heightmap_gui --features gui` for the gui.
 
 ### Usage
 

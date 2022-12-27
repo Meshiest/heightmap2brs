@@ -2,17 +2,21 @@ pub mod map;
 pub mod quad;
 pub mod util;
 
-use crate::map::*;
-use crate::quad::*;
-use crate::util::*;
+use crate::{map::*, quad::*, util::*};
 use brickadia::write::SaveWriter;
 use clap::clap_app;
-use std::boxed::Box;
-use std::fs::File;
+use env_logger::Builder;
+use log::{error, info, LevelFilter};
+use std::{boxed::Box, fs::File, io::Write};
 
 fn main() {
+    Builder::new()
+        .format(|buf, record| writeln!(buf, "{}", record.args()))
+        .filter(None, LevelFilter::Info)
+        .init();
+
     let matches = clap_app!(heightmap =>
-        (version: "0.5.0")
+        (version: env!("CARGO_PKG_VERSION"))
         (author: "github.com/Meshiest")
         (about: "Converts heightmap png files to Brickadia save files")
         (@arg INPUT: +required +multiple "Input heightmap PNG images")
@@ -89,21 +93,21 @@ fn main() {
         options.asset = 3
     }
 
-    println!("Reading image files");
+    info!("Reading image files");
 
     // colormap file parsing
     let colormap = match file_ext(&colormap_file.to_lowercase()) {
         Some("png") => match ColormapPNG::new(&colormap_file, options.lrgb) {
             Ok(map) => map,
-            Err(error) => {
-                return println!("Error reading colormap: {:?}", error);
+            Err(err) => {
+                return error!("Error reading colormap: {:?}", err);
             }
         },
         Some(ext) => {
-            return println!("Unsupported colormap format '{}'", ext);
+            return error!("Unsupported colormap format '{}'", ext);
         }
         None => {
-            return println!("Missing colormap format for '{}'", colormap_file);
+            return error!("Missing colormap format for '{}'", colormap_file);
         }
     };
 
@@ -116,20 +120,21 @@ fn main() {
                 match HeightmapPNG::new(heightmap_files, options.hdmap) {
                     Ok(map) => Box::new(map),
                     Err(error) => {
-                        return println!("Error reading heightmap: {:?}", error);
+                        return error!("Error reading heightmap: {:?}", error);
                     }
                 }
             }
         } else {
-            return println!("Unsupported heightmap format");
+            return error!("Unsupported heightmap format");
         };
 
-    let bricks = gen_opt_heightmap(&*heightmap, &colormap, options);
+    let bricks = gen_opt_heightmap(&*heightmap, &colormap, options, |_| {})
+        .expect("error during generation");
 
-    println!("Writing Save to {}", out_file);
+    info!("Writing Save to {}", out_file);
     let data = bricks_to_save(bricks, owner_id, owner_name);
     SaveWriter::new(File::create(out_file).unwrap(), data)
         .write()
         .expect("Failed to write file!");
-    println!("Done!");
+    info!("Done!");
 }

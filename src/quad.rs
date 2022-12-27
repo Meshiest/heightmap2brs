@@ -1,14 +1,11 @@
-extern crate image;
-
 use crate::map::*;
 use crate::util::*;
-use brickadia::save::Brick;
-use brickadia::save::BrickColor;
-use brickadia::save::Collision;
-use brickadia::save::Color;
-use brickadia::save::Size;
-use std::cmp::{max, min};
-use std::collections::HashSet;
+use brickadia::save::{Brick, BrickColor, Collision, Color, Size};
+use log::info;
+use std::{
+    cmp::{max, min},
+    collections::HashSet,
+};
 
 #[derive(Debug, Default)]
 struct Tile {
@@ -72,11 +69,11 @@ impl Tile {
 
 impl QuadTree {
     // create a heightmap grid from two images
-    pub fn new(heightmap: &dyn Heightmap, colormap: &dyn Colormap) -> Self {
+    pub fn new(heightmap: &dyn Heightmap, colormap: &dyn Colormap) -> Result<Self, String> {
         let (width, height) = heightmap.size();
 
         if colormap.size() != heightmap.size() {
-            panic!("Heightmap and colormap must have same dimensions");
+            return Err("Heightmap and colormap must have same dimensions".to_string());
         }
 
         let mut tiles = Vec::with_capacity((width * height) as usize);
@@ -107,11 +104,11 @@ impl QuadTree {
             }
         }
 
-        QuadTree {
+        Ok(QuadTree {
             tiles: tiles.into_boxed_slice(),
             width,
             height,
-        }
+        })
     }
 
     fn index(&self, x: u32, y: u32) -> usize {
@@ -272,7 +269,7 @@ impl QuadTree {
                     t.height as i32 - t.neighbors.iter().cloned().min().unwrap_or(0) as i32 + 1,
                     2,
                 );
-                let mut desired_height = max(raw_height as i32 * options.scale as i32 / 2, 2);
+                let mut desired_height = max(raw_height * options.scale as i32 / 2, 2);
 
                 // snap bricks to grid
                 if options.snap {
@@ -305,7 +302,7 @@ impl QuadTree {
                         position: (
                             ((t.center.0 * 2 + t.size.0) * options.size) as i32,
                             ((t.center.1 * 2 + t.size.1) * options.size) as i32,
-                            z as i32 - height as i32 + 2,
+                            z - height as i32 + 2,
                         ),
                         collision: Collision {
                             player: !options.nocollide,
@@ -321,7 +318,7 @@ impl QuadTree {
                         }),
                         owner_index: 1,
                         material_intensity: 0,
-                        material_index: if options.glow { 1 } else { 0 },
+                        material_index: u32::from(options.glow),
                         ..Default::default()
                     });
 
@@ -336,46 +333,63 @@ impl QuadTree {
 }
 
 // Generate a heightmap with brick conservation optimizations
-pub fn gen_opt_heightmap(
+pub fn gen_opt_heightmap<F: Fn(f32)>(
     heightmap: &dyn Heightmap,
     colormap: &dyn Colormap,
     options: GenOptions,
-) -> Vec<Brick> {
-    println!("Building initial quadtree");
+    progress: F,
+) -> Result<Vec<Brick>, String> {
+    progress(0.0);
+
+    info!("Building initial quadtree");
     let (width, height) = heightmap.size();
     let area = width * height;
-    let mut quad = QuadTree::new(heightmap, colormap);
+    let mut quad = QuadTree::new(heightmap, colormap)?;
+    progress(0.2);
 
-    println!("Optimizing quadtree");
+    info!("Optimizing quadtree");
     let mut scale = 0;
+
     // loop until the bricks would be too wide or we stop optimizing bricks
     while 2_i32.pow(scale + 1) * (options.size as i32) < 500 {
+        progress(0.2 + 0.5 * (scale as f32 / (500.0 / (options.size as f32)).log2()));
         let count = quad.quad_optimize_level(scale);
         if count == 0 {
             break;
         } else {
-            println!("  Removed {:?} {}x bricks", count, 2_i32.pow(scale));
+            info!("  Removed {:?} {}x bricks", count, 2_i32.pow(scale));
         }
         scale += 1;
     }
 
-    println!("Optimizing linear");
+    progress(0.7);
+
+    info!("Optimizing linear");
+    let mut i = 0;
     loop {
+        i += 1;
+
         let count = quad.line_optimize(options.size);
+        progress(0.7 + 0.25 * (i as f32 / 5.0).min(1.0));
+
         if count == 0 {
             break;
         }
-        println!("  Removed {} bricks", count);
+        info!("  Removed {} bricks", count);
     }
+
+    progress(0.95);
 
     let bricks = quad.into_bricks(options);
     let brick_count = bricks.len();
-    println!(
+    info!(
         "Reduced {} to {} ({}%; -{} bricks)",
         area,
         brick_count,
         (100. - brick_count as f64 / area as f64 * 100.).floor(),
         area as i32 - brick_count as i32,
     );
-    bricks
+
+    progress(1.0);
+    Ok(bricks)
 }
