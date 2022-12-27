@@ -1,7 +1,7 @@
 #![allow(dead_code, unused_variables)]
 use std::{
     collections::HashMap,
-    sync::{Arc, Mutex},
+    sync::mpsc::{self, Receiver, Sender},
     thread,
     time::Duration,
 };
@@ -29,6 +29,8 @@ enum BrickMode {
     Micro,
 }
 
+type Progress = (&'static str, f32);
+
 pub struct HeightmapApp {
     // options for the generator
     heightmaps: Vec<String>,
@@ -45,7 +47,8 @@ pub struct HeightmapApp {
     opt_snap: bool,
     opt_glow: bool,
     mode: BrickMode,
-    progress: Arc<Mutex<(&'static str, f32)>>,
+    progress: Progress,
+    progress_channel: (Sender<Progress>, Receiver<Progress>),
     promise: Option<Promise<Result<(), String>>>,
     texture_handles: HashMap<String, TextureHandle>,
 }
@@ -69,7 +72,8 @@ impl Default for HeightmapApp {
             opt_hdmap: false,
             mode: BrickMode::Default,
             promise: None,
-            progress: Arc::new(Mutex::new(("Pending", 0.))),
+            progress: ("Pending", 0.),
+            progress_channel: mpsc::channel(),
             texture_handles: HashMap::new(),
         }
     }
@@ -114,14 +118,12 @@ impl HeightmapApp {
         let options = self.options();
         let heightmap_files = self.heightmaps.clone();
         let colormap_file = self.colormap.clone();
-        let progress = self.progress.clone();
+        let progress = self.progress_channel.0.clone();
 
         self.promise.get_or_insert_with(|| {
             info!("Preparing converter...");
             let (sender, promise) = Promise::new();
-            {
-                *progress.lock().unwrap() = ("Reading", 0.);
-            }
+            progress.send(("Reading", 0.)).unwrap();
 
             thread::spawn(move || {
                 info!("Reading image files...");
@@ -134,12 +136,10 @@ impl HeightmapApp {
                         }
                     };
 
-                {
-                    *progress.lock().unwrap() = ("Generating", 0.10);
-                }
+                progress.send(("Generating", 0.10)).unwrap();
 
                 let bricks = match gen_opt_heightmap(&*heightmap, &*colormap, options, |p| {
-                    *progress.lock().unwrap() = ("Generating", 0.1 + 0.85 * p);
+                    progress.send(("Generating", 0.1 + 0.85 * p)).unwrap();
                 }) {
                     Ok(b) => b,
                     Err(err) => {
@@ -149,24 +149,19 @@ impl HeightmapApp {
                 };
 
                 info!("Writing Save to {}", out_file);
-                {
-                    *progress.lock().unwrap() = ("Writing", 0.95);
-                }
+                progress.send(("Writing", 0.95)).unwrap();
                 let data = bricks_to_save(bricks, owner_id, owner_name);
                 if let Err(e) = SaveWriter::new(File::create(&out_file).unwrap(), data).write() {
                     let err = format!("failed to write file: {e}");
                     error!("{err}");
                     return sender.send(Err(err));
                 }
-                {
-                    *progress.lock().unwrap() = ("Finshed", 1.0);
-                }
+                progress.send(("Finshed", 1.0)).unwrap();
+
                 info!("Done!");
                 sender.send(Ok(()));
                 thread::sleep(Duration::from_millis(500));
-                {
-                    *progress.lock().unwrap() = ("", 2.0);
-                }
+                progress.send(("", 2.0)).unwrap();
             });
             promise
         });
@@ -324,7 +319,10 @@ impl HeightmapApp {
     }
 
     fn draw_progress(&mut self, ctx: &Context, ui: &mut Ui) {
-        let (progress_text, progress) = { *self.progress.lock().unwrap() };
+        while let Ok(p) = self.progress_channel.1.try_recv() {
+            self.progress = p;
+        }
+        let (progress_text, progress) = self.progress;
 
         let mut clear_promise = progress > 1.0;
 
