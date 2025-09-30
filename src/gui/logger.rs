@@ -1,13 +1,14 @@
-use std::collections::VecDeque;
+use std::{collections::VecDeque, sync::OnceLock};
 
-use egui::{mutex::Mutex, Color32, RichText, ScrollArea, Ui};
-use lazy_static::lazy_static;
+use egui::{Color32, RichText, ScrollArea, Ui, mutex::Mutex};
 use log::SetLoggerError;
 
 struct EguiLogger;
 
-lazy_static! {
-    static ref LOG: Mutex<VecDeque<(log::Level, String)>> = Mutex::new(VecDeque::new());
+static LOG: OnceLock<Mutex<VecDeque<(log::Level, String)>>> = OnceLock::new();
+
+pub fn get_log() -> &'static Mutex<VecDeque<(log::Level, String)>> {
+    LOG.get_or_init(|| Mutex::new(VecDeque::with_capacity(1000)))
 }
 
 impl log::Log for EguiLogger {
@@ -17,7 +18,7 @@ impl log::Log for EguiLogger {
 
     fn log(&self, record: &log::Record) {
         if self.enabled(record.metadata()) {
-            let mut log = LOG.lock();
+            let mut log = get_log().lock();
 
             let mut l: VecDeque<(log::Level, String)> = log.clone();
             l.push_back((record.level(), record.args().to_string()));
@@ -37,7 +38,7 @@ pub fn init() -> Result<(), SetLoggerError> {
 }
 
 pub fn draw(ui: &mut Ui) {
-    let logs = LOG.lock();
+    let logs = get_log().lock();
 
     ScrollArea::vertical()
         .stick_to_bottom(true)

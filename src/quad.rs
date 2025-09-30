@@ -1,6 +1,9 @@
 use crate::map::*;
 use crate::util::*;
-use brickadia::save::{Brick, BrickColor, Collision, Color, Size};
+use brdb::{
+    Brick, BrickSize, BrickType, Collision, Color, Position,
+    assets::materials::{GLOW, PLASTIC},
+};
 use log::info;
 use std::{
     cmp::{max, min},
@@ -174,7 +177,7 @@ impl QuadTree {
 
         // determine the new size of the parent tile, make children point at the parent
         let new_size = children.iter().fold(0, |sum, &i| {
-            let mut t = &mut self.tiles[i];
+            let t = &mut self.tiles[i];
             // assign parent, extend parent's neighbors
             t.parent = Some(start_i);
             new_neighbors.push(t.neighbors.clone());
@@ -183,7 +186,7 @@ impl QuadTree {
             sum + if is_vertical { t.size.1 } else { t.size.0 }
         });
 
-        let mut start = &mut self.tiles[start_i];
+        let start = &mut self.tiles[start_i];
 
         for n in new_neighbors {
             start.neighbors.extend(&n);
@@ -284,41 +287,41 @@ impl QuadTree {
                     // pick height for this brick
 
                     let height =
-                        min(max(desired_height, if options.stud { 5 } else { 2 }), 250) as u32;
+                        min(max(desired_height, if options.stud { 5 } else { 2 }), 250) as u16;
                     let height = height + height % (if options.stud { 5 } else { 2 });
 
                     bricks.push(Brick {
-                        asset_name_index: options.asset,
-                        size: Size::Procedural(
-                            t.size.0 * options.size,
-                            t.size.1 * options.size,
-                            // if it's a microbrick image, just use the block size so it's cubes
-                            if options.img && options.micro {
-                                options.size
-                            } else {
-                                height
-                            },
-                        ),
-                        position: (
-                            ((t.center.0 * 2 + t.size.0) * options.size) as i32,
-                            ((t.center.1 * 2 + t.size.1) * options.size) as i32,
+                        asset: BrickType::Procedural {
+                            asset: options.asset.clone(),
+                            size: BrickSize::new(
+                                t.size.0 as u16 * options.size,
+                                t.size.1 as u16 * options.size, // if it's a microbrick image, just use the block size so it's cubes
+                                if options.img && options.micro {
+                                    options.size
+                                } else {
+                                    height
+                                },
+                            ),
+                        },
+                        position: Position::new(
+                            (t.center.0 as i32 * 2 + t.size.0 as i32) * options.size as i32,
+                            (t.center.1 as i32 * 2 + t.size.1 as i32) * options.size as i32,
                             z - height as i32 + 2,
                         ),
                         collision: Collision {
                             player: !options.nocollide,
                             weapon: !options.nocollide,
-                            interaction: !options.nocollide,
-                            tool: true,
+                            interact: !options.nocollide,
+                            ..Default::default()
                         },
-                        color: BrickColor::Unique(Color {
+                        color: Color {
                             r: t.color[0],
                             g: t.color[1],
                             b: t.color[2],
-                            a: t.color[3],
-                        }),
-                        owner_index: 1,
+                        },
+                        owner_index: None,
                         material_intensity: 0,
-                        material_index: u32::from(options.glow),
+                        material: if options.glow { GLOW } else { PLASTIC },
                         ..Default::default()
                     });
 
@@ -381,7 +384,7 @@ pub fn gen_opt_heightmap<F: Fn(f32) -> bool>(
     loop {
         i += 1;
 
-        let count = quad.line_optimize(options.size);
+        let count = quad.line_optimize(options.size as u32);
         progress!(prog_offset + prog_scale * (i as f32 / 5.0).min(1.0));
 
         if count == 0 {

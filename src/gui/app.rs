@@ -1,25 +1,26 @@
 #![allow(dead_code, unused_variables)]
 use std::{
-    collections::{HashMap, HashSet},
+    borrow::Cow,
+    collections::HashSet,
+    path::PathBuf,
     sync::mpsc::{self, Receiver, Sender},
     thread::{self},
     time::Duration,
 };
 
-use super::{logger, util::load_image_from_path};
-use crate::gui::util::maps_from_files;
-use brickadia::write::SaveWriter;
+use super::logger;
+use crate::{gui::util::maps_from_files, quad::*, util::bricks_to_save, util::*};
+use brdb::assets::bricks::{
+    PB_DEFAULT_BRICK, PB_DEFAULT_MICRO_BRICK, PB_DEFAULT_STUDDED, PB_DEFAULT_TILE,
+};
 use eframe::App;
 use egui::{
-    vec2, Button, CentralPanel, Color32, Context, Id, ProgressBar, ScrollArea, TextureHandle,
-    TopBottomPanel, Ui,
+    Button, CentralPanel, Color32, Context, Id, ImageSource, ProgressBar, ScrollArea,
+    TopBottomPanel, Ui, vec2,
 };
 use log::{error, info};
 use poll_promise::Promise;
-use {
-    heightmap::{quad::*, util::*},
-    std::{fs::File, path::Path},
-};
+use std::path::Path;
 
 #[derive(PartialEq, Clone)]
 enum BrickMode {
@@ -33,13 +34,12 @@ type Progress = (&'static str, f32);
 
 pub struct HeightmapApp {
     // options for the generator
-    heightmaps: Vec<String>,
-    colormap: Option<String>,
-    owner_name: String,
-    owner_id: String,
+    heightmaps: Vec<PathBuf>,
+    colormap: Option<PathBuf>,
     out_file: String,
+    out_clipboard: bool,
     vertical_scale: u32,
-    horizontal_size: u32,
+    horizontal_size: u16,
     opt_quad: bool,
     opt_cull: bool,
     opt_nocollide: bool,
@@ -51,7 +51,6 @@ pub struct HeightmapApp {
     progress: Progress,
     progress_channel: (Sender<Progress>, Receiver<Progress>),
     promise: Option<Promise<Result<(), String>>>,
-    texture_handles: HashMap<String, TextureHandle>,
     gen_interrupt: Option<Sender<()>>,
 }
 
@@ -61,9 +60,8 @@ impl Default for HeightmapApp {
             // default generator options
             heightmaps: vec![],
             colormap: None,
-            owner_name: "Generator".to_string(),
-            owner_id: "a1b16aca-9627-4a16-a160-67fa9adbb7b6".to_string(),
-            out_file: "out.brs".to_string(),
+            out_file: "out.brz".to_string(),
+            out_clipboard: true,
             vertical_scale: 1,
             horizontal_size: 1,
             opt_quad: true,
@@ -77,7 +75,6 @@ impl Default for HeightmapApp {
             promise: None,
             progress: ("Pending", 0.),
             progress_channel: mpsc::channel(),
-            texture_handles: HashMap::new(),
             gen_interrupt: None,
         }
     }
@@ -90,7 +87,7 @@ impl HeightmapApp {
             size: self.horizontal_size * 5,
             scale: self.vertical_scale,
             cull: self.opt_cull,
-            asset: 0,
+            asset: PB_DEFAULT_BRICK,
             tile: self.mode == BrickMode::Tile,
             micro: self.mode == BrickMode::Micro,
             stud: self.mode == BrickMode::Stud,
@@ -104,13 +101,13 @@ impl HeightmapApp {
         };
 
         if options.tile {
-            options.asset = 1
+            options.asset = PB_DEFAULT_TILE;
         } else if options.micro {
             options.size /= 5;
-            options.asset = 2;
+            options.asset = PB_DEFAULT_MICRO_BRICK;
         }
         if options.stud {
-            options.asset = 3
+            options.asset = PB_DEFAULT_STUDDED;
         }
 
         options
@@ -118,8 +115,7 @@ impl HeightmapApp {
 
     fn run_converter(&mut self) {
         let out_file = self.out_file.clone();
-        let owner_id = self.owner_id.clone();
-        let owner_name = self.owner_name.clone();
+        let is_clipboard = self.out_clipboard;
         let options = self.options();
         let heightmap_files = self.heightmaps.clone();
         let colormap_file = self.colormap.clone();
@@ -175,12 +171,63 @@ impl HeightmapApp {
 
                 info!("Writing Save to {}", out_file);
                 progress("Writing", 0.95);
-                let data = bricks_to_save(bricks, owner_id, owner_name);
-                if let Err(e) = SaveWriter::new(File::create(&out_file).unwrap(), data).write() {
-                    let err = format!("failed to write file: {e}");
+                let data = bricks_to_save(bricks);
+
+                if out_file.to_lowercase().ends_with(".brz") {
+                    let brz = match data.to_brz_vec() {
+                        Ok(b) => b,
+                        Err(e) => {
+                            let err = format!("failed to encode brz: {e}");
+                            error!("{err}");
+                            return sender.send(Err(err));
+                        }
+                    };
+                    if let Err(e) = std::fs::write(&out_file, brz) {
+                        let err = format!("failed to write file: {e}");
+                        error!("{err}");
+                        return sender.send(Err(err));
+                    }
+                } else if out_file.to_lowercase().ends_with(".brdb") {
+                    if let Err(e) = data.write_brdb(&out_file) {
+                        let err = format!("failed to write file: {e}");
+                        error!("{err}");
+                        return sender.send(Err(err));
+                    };
+                } else {
+                    let err = "output file must end with .brz or .brdb".to_string();
                     error!("{err}");
                     return sender.send(Err(err));
                 }
+
+                if is_clipboard {
+                    // If the path is not absolute, make it absolute relative to the current exe location
+                    let mut full_path = Path::new(&out_file)
+                        .canonicalize()
+                        .unwrap_or_else(|_| PathBuf::from(&out_file))
+                        .to_string_lossy()
+                        .to_string();
+
+                    // lowercase the first letter
+                    full_path.get_mut(0..1).map(|s| s.make_ascii_lowercase());
+
+                    if let Err(e) = clipboard_win::raw::open() {
+                        error!("failed to open clipboard: {e}");
+                        return sender.send(Err(format!("failed to open clipboard: {e}")));
+                    }
+
+                    if let Err(e) = clipboard_win::raw::set_file_list(&[full_path.clone()]) {
+                        error!("failed to open clipboard: {e}");
+                        return sender.send(Err(format!("failed to open clipboard: {e}")));
+                    } else {
+                        info!("Wrote path {full_path} to clipboard");
+                    }
+
+                    if let Err(e) = clipboard_win::raw::close() {
+                        error!("failed to close clipboard: {e}");
+                        return sender.send(Err(format!("failed to close clipboard: {e}")));
+                    }
+                }
+
                 stop_if_stopped!();
                 progress("Finished", 1.0);
 
@@ -196,10 +243,10 @@ impl HeightmapApp {
 
     fn draw_header(&self, ui: &mut Ui) {
         ui.horizontal(|ui| {
-            ui.heading("heightmap2brs");
+            ui.heading("heightmap2brz");
             ui.label(format!("v{}", env!("CARGO_PKG_VERSION")));
         });
-        ui.hyperlink("https://github.com/brickadia-community/heightmap2brs");
+        ui.hyperlink("https://github.com/brickadia-community/heightmap2brz");
         ui.label("Converts heightmap png files to Brickadia save files, also works as img2brick");
         egui::warn_if_debug_build(ui);
     }
@@ -213,23 +260,22 @@ impl HeightmapApp {
             .striped(true)
             .spacing([40.0, 4.0])
             .show(ui, |ui| {
-                ui.set_enabled(true);
-
-                ui.label("Save Path")
+                ui.label("Save Destination")
                     .on_hover_text("The save will be created relative to the location of the exe.");
-                ui.add(egui::TextEdit::singleline(&mut self.out_file).hint_text("File Name"));
-                ui.end_row();
-
-                ui.label("Brick Owner");
                 ui.horizontal(|ui| {
-                    ui.add(
-                        egui::TextEdit::singleline(&mut self.owner_name)
-                            .hint_text("Name")
-                            .desired_width(100.0),
-                    );
-                    ui.add(egui::TextEdit::singleline(&mut self.owner_id).hint_text("Id"));
+                    ui.checkbox(&mut self.out_clipboard, "Copy to clipboard")
+                        .on_hover_text("Copy the save file path to clipboard after generation");
+
+                    ui.add(egui::TextEdit::singleline(&mut self.out_file).hint_text("File Name"));
                 });
                 ui.end_row();
+                let out_file_lowercase = self.out_file.to_lowercase();
+                let is_brz = out_file_lowercase.ends_with(".brz");
+                if !is_brz && !out_file_lowercase.ends_with(".brdb") {
+                    ui.label("Warning:");
+                    ui.colored_label(Color32::RED, "Output file must end with .brz or .brdb");
+                    ui.end_row();
+                }
 
                 ui.label("Horizontal Scale")
                     .on_hover_text("The size of each pixel in studs (or microbricks)");
@@ -286,21 +332,18 @@ impl HeightmapApp {
 
         // handle heightmap multiple file selection
         if ui.button("Select heightmaps").clicked() {
-            let result = nfd::dialog_multiple()
-                .filter("png")
-                .open()
-                .unwrap_or_else(|e| {
-                    panic!("{}", e);
-                });
+            let result = native_dialog::DialogBuilder::file()
+                .add_filter("PNG Image", ["png"])
+                .open_multiple_file()
+                .show();
 
             match result {
-                nfd::Response::Okay(_) => unreachable!(),
-                nfd::Response::OkayMultiple(files) => {
-                    info!("Selected heightmap files: {:?}", files);
+                Ok(files) => {
                     self.heightmaps = files;
+                    info!("Selected heightmap files: {:?}", &self.heightmaps);
                 }
-                nfd::Response::Cancel => {
-                    self.heightmaps = vec![];
+                Err(e) => {
+                    error!("Error selecting heightmap files: {e}");
                 }
             }
         }
@@ -332,18 +375,18 @@ impl HeightmapApp {
             .add(Button::new("Select colormap").fill(Color32::from_rgb(60, 60, 120)))
             .clicked()
         {
-            let result = nfd::dialog().filter("png").open().unwrap_or_else(|e| {
-                panic!("{}", e);
-            });
+            let result = native_dialog::DialogBuilder::file()
+                .add_filter("PNG Image", ["png"])
+                .open_single_file()
+                .show();
 
             match result {
-                nfd::Response::Okay(file_path) => {
+                Ok(file_path) => {
                     info!("Selected colormap file: {:?}", file_path);
-                    self.colormap = Some(file_path);
+                    self.colormap = file_path;
                 }
-                nfd::Response::OkayMultiple(files) => unreachable!(),
-                nfd::Response::Cancel => {
-                    self.colormap = None;
+                Err(e) => {
+                    error!("Error selecting colormap file: {e}");
                 }
             }
         }
@@ -452,19 +495,15 @@ impl HeightmapApp {
         }
     }
 
-    fn thumb(&mut self, ui: &mut Ui, image: &str) {
-        let texture: &egui::TextureHandle = self
-            .texture_handles
-            .entry(image.to_string())
-            .or_insert_with(|| {
-                let default_image = egui::ColorImage::new([32, 32], Color32::from_rgb(255, 0, 255));
-
-                let data = load_image_from_path(Path::new(image)).unwrap_or(default_image);
-
-                ui.ctx().load_texture(image, data, Default::default())
-            });
-
-        ui.image(texture, vec2(32.0, 32.0));
+    fn thumb(&mut self, ui: &mut Ui, image: &PathBuf) {
+        ui.add(
+            egui::Image::new(ImageSource::Uri(Cow::from(format!(
+                "file://{}",
+                image.display().to_string().replace("\\", "/")
+            ))))
+            .fit_to_exact_size(vec2(32.0, 32.0))
+            .maintain_aspect_ratio(false),
+        );
     }
 }
 

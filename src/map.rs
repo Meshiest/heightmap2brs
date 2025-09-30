@@ -1,6 +1,8 @@
-use byteorder::{BigEndian, ByteOrder};
 use image::RgbaImage;
-use std::result::Result;
+use std::{
+    path::{Path, PathBuf},
+    result::Result,
+};
 
 use crate::util::to_linear_rgb;
 
@@ -28,7 +30,7 @@ impl Heightmap for HeightmapPNG {
         if self.rgba_encoded {
             self.maps
                 .iter()
-                .fold(0, |sum, m| sum + BigEndian::read_u32(&m.get_pixel(x, y).0))
+                .fold(0, |sum, m| sum + u32::from_be_bytes(m.get_pixel(x, y).0))
         } else {
             self.maps
                 .iter()
@@ -43,7 +45,7 @@ impl Heightmap for HeightmapPNG {
 
 // Heightmap image input
 impl HeightmapPNG {
-    pub fn new(images: Vec<&str>, rgba_encoded: bool) -> Result<Self, String> {
+    pub fn new(images: Vec<&PathBuf>, rgba_encoded: bool) -> Result<Self, String> {
         if images.is_empty() {
             return Err("HeightmapPNG requires at least one image".to_string());
         }
@@ -54,7 +56,7 @@ impl HeightmapPNG {
             if let Ok(img) = image::open(file) {
                 maps.push(img.to_rgba8());
             } else {
-                return Err(format!("Could not open PNG {}", file));
+                return Err(format!("Could not open PNG {}", file.display()));
             }
         }
 
@@ -120,14 +122,14 @@ impl Colormap for ColormapPNG {
 
 // Colormap image input
 impl ColormapPNG {
-    pub fn new(file: &str, lrgb: bool) -> Result<Self, String> {
-        if let Ok(img) = image::open(file) {
+    pub fn new(file: impl AsRef<Path>, lrgb: bool) -> Result<Self, String> {
+        if let Ok(img) = image::open(&file) {
             Ok(ColormapPNG {
                 source: img.to_rgba8(),
                 lrgb,
             })
         } else {
-            Err(format!("Could not open PNG {}", file))
+            Err(format!("Could not open PNG {}", file.as_ref().display()))
         }
     }
 }
